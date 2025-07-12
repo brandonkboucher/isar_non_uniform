@@ -23,6 +23,8 @@ close all
 
 % instantiate plotting
 p = plotting();
+% p.plot_all = true;
+p.plot_all = true;
 
 %% Define the tx signal parameters
 
@@ -176,49 +178,11 @@ for ipulse = 1:num_pulses
 
 end
 
-%% Raw ISAR data plots
-
-figure
-subplot(1,2,1)
-imagesc(abs(rx_signal))
-title('Absolute value of received signal - raw ISAR data')
-xlabel('range bin')
-ylabel('pulse index')
-colorbar
-
-subplot(1,2,2)
-imagesc(real(rx_signal))
-title('Real value of received signal - raw ISAR data')
-xlabel('range bin')
-ylabel('pulse index')
-colorbar
-
-figure
-subplot(1,2,1)
-plot(range_array, imag(rx_signal(1500, :)))
-hold on
-xline(ranges(1500), 'Color', 'r', 'LineWidth', 2, 'LineStyle','--')
-title('Imaginary value of received signal for pulse 1500 - raw ISAR data')
-xlabel('range [m]')
-ylabel('Amplitude')
-
-subplot(1,2,2)
-plot(range_array, real(rx_signal(1500, :)))
-hold on
-xline(ranges(1500), 'Color', 'r', 'LineWidth', 2, 'LineStyle', '--')
-title('Real value of received signal for pulse 1500 - raw ISAR data')
-xlabel('range [m]')
-ylabel('Amplitude')
-
-figure
-s = surf(real(rx_signal));
-s.EdgeColor = 'none';
-xlabel('range bins')
-ylabel('pulses')
-
-p.plot_range(ranges)
-p.plot_trajectory(target_positions);
-% p.video_trajectory(target_positions);
+% save data
+output_struct.ranges = ranges;
+output_struct.rx_signal = rx_signal;
+output_struct.range_array = range_array;
+output_struct.target_positions = target_positions;
 
 %% Range compression
 % https://www.numberanalytics.com/blog/sar-signal-processing-essentials
@@ -232,25 +196,9 @@ for ipulse =1:num_pulses
         conv(rx_signal(ipulse,:), h, 'same');
 end
 
-%% Range compression plots
-
-figure
-subplot(1,2,1)
-imagesc(abs(rx_signal_range_compressed))
-title('Absolute value range compressed ISAR image')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
-
-subplot(1,2,2)
-imagesc(real(rx_signal_range_compressed))
-title('Real Range compressed ISAR image')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
-
+% save data 
+output_struct.rx_signal_range_compressed = ...
+    rx_signal_range_compressed;
 
 %% Range tracking 
 
@@ -290,24 +238,8 @@ for ipulse = 1:num_pulses
 
 end
 
-%% Range tracking plotting
-
-figure
-subplot(1,2,1)
-imagesc(abs(rx_signal_aligned))
-title('Absolute value of ISAR image post range tracking')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
-
-subplot(1,2,2)
-imagesc(real(rx_signal_aligned))
-title('Real of ISAR image post range tracking')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
+% save data
+output_struct.rx_signal_aligned = rx_signal_aligned;
 
 %% Phase Adjustment (autofocus)
 
@@ -319,7 +251,7 @@ axis square
 % dominant scatters phase angles and average the phases for
 % each pulse.
 
-% I'm having a real tough time finding a coherent fully 
+% I'm having a real tough time finding a coherent, fully 
 % written out version of the MVM so I'm going to rely on the
 % AI to help for now. If I can't get this to work then I'll
 % try implementing the phase gradient algorithm
@@ -339,24 +271,8 @@ phases = angle(rx_signal_aligned(:,dominant_idx));
 correction = exp(-1j * phases);
 rx_autofocused = rx_signal_aligned .* correction;
 
-%% Autofocus plotting
-
-figure
-subplot(1,2,1)
-imagesc(abs(rx_autofocused))
-title('Absolute value of ISAR image post autofocus')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
-
-subplot(1,2,2)
-imagesc(real(rx_autofocused))
-title('Real of ISAR image post autofocus')
-xlabel('range index')
-ylabel('pulse index')
-colorbar
-axis square
+% save data
+output_struct.rx_autofocused = rx_autofocused;
 
 %% RD processing
 
@@ -365,97 +281,8 @@ axis square
 rx_signal_rd = ...
     fftshift(fft(rx_autofocused, [], 1), 1);
 
-% find point target
-[row, col] = find(abs(rx_signal_rd) > 100000);
+% save data
+output_struct.rx_signal_rd = rx_signal_rd;
 
-figure
-subplot(1,2,1)
-imagesc(abs(rx_signal_rd))
-title('Range-Doppler ISAR image')
-xlabel('range')
-ylabel('Doppler bins')
-colorbar
-axis square
-
-subplot(1,2,2)
-semilogy(abs(rx_signal_rd(:,col)))
-grid on
-axis square
-
-
-%% Plotting
-
-% figure
-% subplot(1,2,1)
-% plot(target_positions(:,1), target_positions(:,2))
-% axis square
-% subplot(1,2,2)
-% plot(ranges)
-% axis square
-% 
-% figure
-% 
-% subplot(2,2,1)
-% imagesc(real(rx_signal));
-% colorbar
-% xlabel('cross range [m]')
-% ylabel('range [m]')
-% title('rx signal prior to compression')
-% axis square
-% 
-% subplot(2,2,2)
-% imagesc(real(rx_signal_range_compressed))
-% colorbar
-% xlabel('cross range [m]')
-% ylabel('range [m]')
-% title('range compressed rx signal')
-% axis square
-% 
-% subplot(2,2,3)
-% imagesc(real(rx_signal_rd))
-% colorbar
-% xlabel('Doppler [m]')
-% ylabel('range [m]')
-% title('Doppler spectrum (Range-Doppler Map)')
-% axis square
-% 
-% subplot(2,2,4)
-% imagesc(real(moco_doppler_spectrum))
-% colorbar
-% xlabel('Doppler [m]')
-% ylabel('range [m]')
-% title('Motion compensated Doppler spectrum (Range-Doppler Map)')
-% axis square
-% 
-% figure
-% plot(abs(rx_signal_rd(:)), 'DisplayName', 'before')
-% hold on
-% plot(abs(moco_doppler_spectrum(:)), 'DisplayName', 'after')
-% legend
-% 
-% figure
-% plot(abs(rx_signal_rd(:)) - abs(moco_doppler_spectrum(:)), 'DisplayName', 'before')
-% 
-% figure
-% plot(1:num_pulses, phase_corrections)
-% xlabel('Pulse index')
-% ylabel('Phase (radians)')
-% title('Phase correction over time')
-% 
-% figure
-% subplot(1,3,1)
-% plot(1:num_pulses, fds)
-% title('doppler')
-% subplot(1,3,2)
-% plot(1:num_pulses, ranges)
-% title('ranges')
-% subplot(1,3,3)
-% plot(1:num_pulses, los_velocities)
-% title('los velocity')
-% 
-% target_range_idx = 178; % find the index close to target range
-% figure
-% plot(angle(rx_signal(target_range_idx, :)));
-% title('Phase over pulses at target range');
-% xlabel('Pulse index');
-% ylabel('Phase (radians)');
+% plot
+p.plot(output_struct);
