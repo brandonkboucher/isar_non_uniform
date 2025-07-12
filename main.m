@@ -85,7 +85,7 @@ target.velocity_magnitude = norm(target.velocity);
 T = 10; % [s]
 
 % calculate the number of pulses
-num_cross_range_bins = round(T / dt_slow);
+num_pulses = round(T / dt_slow);
 num_range_bins = size(t_hat,1);
 
 % slow time array
@@ -104,17 +104,17 @@ tx_signal = rect .* exp(pi * 1j * ...
 
 % initialize received signal matrix
 % [number of range cells x number of cross range cells]
-rx_signal = zeros(num_cross_range_bins, num_range_bins);
+rx_signal = zeros(num_pulses, num_range_bins);
 R0 = zeros(target.num_scatters,1);
 
 % output vectors
-target_positions = zeros(num_cross_range_bins, size(target.position, 2));
-los_velocities = zeros(num_cross_range_bins, 1);
-ranges = zeros(num_cross_range_bins, 1);
-fds = zeros(num_cross_range_bins, 1);
+target_positions = zeros(num_pulses, size(target.position, 2));
+los_velocities = zeros(num_pulses, 1);
+ranges = zeros(num_pulses, 1);
+fds = zeros(num_pulses, 1);
 
 % iterate through each pulse (column)
-for ipulse = 1:num_cross_range_bins
+for ipulse = 1:num_pulses
 
     % iterate through each target scatter
     for ipt = 1:target.num_scatters
@@ -224,7 +224,7 @@ p.plot_trajectory(target_positions);
 % transmitted signal pulse
 h = conj(flipud(tx_signal));
 rx_signal_range_compressed = zeros(size(rx_signal));
-for ipulse =1:num_cross_range_bins
+for ipulse =1:num_pulses
     rx_signal_range_compressed(ipulse,:) = ...
         conv(rx_signal(ipulse,:), h, 'same');
 end
@@ -246,33 +246,59 @@ xlabel('range index')
 ylabel('pulse index')
 colorbar
 
-%% Motion compensation
 
-% compensate for the motion along the line-of-sight
-moco_doppler_spectrum = zeros(size(doppler_spectrum));
-phase_corrections = zeros(num_cross_range_bins, 1);
-for ipulse = 1:num_cross_range_bins
+%% Range tracking 
 
-    % calculate the instantaneous Doppler frequency from (8)
-    % https://en.wikipedia.org/wiki/Doppler_effect
-    % fd = 2 * fc * los_velocities(ipulse) / const.c;
+% Range tracking or range alignment functions to compensate
+% for the translational motion, and aligning the range
+% profiles. A reference range profile is selected along a
+% pulse, and the cross correlation is taken for each pulse.
+% The resulting delay between the reference and each pulse
+% is the amount the range profile needs to be shifted in
+% order to be aligned
 
-    % calculate the phase resulting from the line-of-sight
-    % velocity of the target
-    % phase_correction = ...
-    %     exp(-1j * 2 * pi * fd * (ipulse - 1) * dt_slow);
-    translational_phase_correction = ...
-        exp(-1j * 4 * pi * fc * ...
-        (R0 + los_velocities(ipulse))/const.c);
+% select a reference pulse, the center cross-range bin
+ref_pulse = round(num_pulses / 2);
 
-    phase_corrections(ipulse) = ...
-        angle(translational_phase_correction);
+% extract the corresponding range profile
+ref_profile = rx_signal_range_compressed(ref_pulse, :);
 
-    % calculate the motion compensated spectrum
-    moco_doppler_spectrum(:, ipulse) = ...
-        doppler_spectrum(:,ipulse) .* translational_phase_correction;
+% iterate over each pulse and align the range profile with
+% the reference range profile
+rx_signal_aligned = zeros(size(rx_signal_range_compressed));
+for ipulse = 1:num_pulses
+
+    % extract the range profile
+    profile = rx_signal_range_compressed(ipulse, :);
+
+    % evaluate the cross correlation
+    [corr,lag] = xcorr(profile, ref_profile);
+
+    % find the lag that maximizes the absolute value of the
+    % correlation
+    [~, max_idx] = max(abs(corr));
+
+    % shift the range profile to maximize correlation with
+    % the reference profile
+    rx_signal_aligned(ipulse, :) = ...
+        circshift(profile, -lag(max_idx));
 
 end
+
+figure
+subplot(1,2,1)
+imagesc(abs(rx_signal_aligned))
+title('Absolute value of ISAR image post range tracking')
+xlabel('range index')
+ylabel('pulse index')
+colorbar
+
+subplot(1,2,2)
+imagesc(real(rx_signal_aligned))
+title('Real of ISAR image post range tracking')
+xlabel('range index')
+ylabel('pulse index')
+colorbar
 
 %% RD processing
 
@@ -340,20 +366,20 @@ figure
 plot(abs(doppler_spectrum(:)) - abs(moco_doppler_spectrum(:)), 'DisplayName', 'before')
 
 figure
-plot(1:num_cross_range_bins, phase_corrections)
+plot(1:num_pulses, phase_corrections)
 xlabel('Pulse index')
 ylabel('Phase (radians)')
 title('Phase correction over time')
 
 figure
 subplot(1,3,1)
-plot(1:num_cross_range_bins, fds)
+plot(1:num_pulses, fds)
 title('doppler')
 subplot(1,3,2)
-plot(1:num_cross_range_bins, ranges)
+plot(1:num_pulses, ranges)
 title('ranges')
 subplot(1,3,3)
-plot(1:num_cross_range_bins, los_velocities)
+plot(1:num_pulses, los_velocities)
 title('los velocity')
 
 target_range_idx = 178; % find the index close to target range
