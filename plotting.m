@@ -17,6 +17,8 @@ classdef plotting < handle
         plot_autofocus_bool = false
         plot_rd_bool = false
 
+        range_array
+
     end
     
     methods
@@ -39,19 +41,26 @@ classdef plotting < handle
                 delete plots/*.png
             end
 
+            if isfield(output_struct, 'range_array')
+                obj.range_array = output_struct.range_array;
+            end
+
             if (obj.plot_target_trajectory_bool || obj.plot_all) ...
                     && isfield(output_struct, 'target_positions')
                 obj.plot_trajectory(output_struct.target_positions)
             end
 
             if (obj.video_target_trajectory_bool || obj.plot_all)...
-                && isfield(output_struct, 'target_positions')
+                && isfield(output_struct, 'target_positions') ...
+                && ~obj.visible
                 obj.video_trajectory(output_struct.target_positions)
             end
 
             if (obj.plot_range_bool || obj.plot_all) ...
-                    && isfield(output_struct, 'ranges')
-                obj.plot_range(output_struct.ranges)
+                    && isfield(output_struct, 'ranges') ...
+                    && isfield(output_struct, 't_m')
+                obj.plot_range(output_struct.ranges, ...
+                    output_struct.t_m)
             end
 
             if (obj.plot_raw_isar_bool || obj.plot_all) ...
@@ -97,9 +106,9 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(abs(rx_signal_rd))
+            imagesc(obj.range_array, 1:size(rx_signal_rd, 1), abs(rx_signal_rd))
             title('Range-Doppler ISAR image')
-            xlabel('range')
+            xlabel('Range [m]')
             ylabel('Doppler bins')
             colorbar
             axis square
@@ -122,10 +131,10 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            imagesc(row_idx, col_idx, ...
+            imagesc(obj.range_array(col_idx), row_idx, ...
                 abs(rx_signal_rd(row_idx, col_idx)))
             title('Range-Doppler ISAR image - Zoomed near dominant scatterer')
-            xlabel('range')
+            xlabel('Range [m]')
             ylabel('Doppler bins')
             colorbar
             axis square
@@ -145,17 +154,17 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(abs(rx_autofocused))
+            imagesc(obj.range_array, 1:size(rx_autofocused, 1), abs(rx_autofocused))
             title('Absolute value of ISAR image post autofocus')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
             
             subplot(1,2,2)
-            imagesc(real(rx_autofocused))
+            imagesc(obj.range_array, 1:size(rx_autofocused, 1), real(rx_autofocused))
             title('Real of ISAR image post autofocus')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
@@ -175,17 +184,17 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(abs(rx_signal_aligned))
+            imagesc(obj.range_array, 1:size(rx_signal_aligned, 1), abs(rx_signal_aligned))
             title('Absolute value of ISAR image post range tracking')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
             
             subplot(1,2,2)
-            imagesc(real(rx_signal_aligned))
+            imagesc(obj.range_array, 1:size(rx_signal_aligned, 1),real(rx_signal_aligned))
             title('Real of ISAR image post range tracking')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
@@ -205,17 +214,17 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(abs(rx_signal_range_compressed))
+            imagesc(obj.range_array, 1:size(rx_signal_range_compressed, 1), abs(rx_signal_range_compressed))
             title('Absolute value range compressed ISAR image')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
             
             subplot(1,2,2)
-            imagesc(real(rx_signal_range_compressed))
+            imagesc(obj.range_array, 1:size(rx_signal_range_compressed, 1), real(rx_signal_range_compressed))
             title('Real Range compressed ISAR image')
-            xlabel('range index')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             axis square
@@ -235,16 +244,16 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(abs(rx_signal))
-            title('Absolute value of received signal - raw ISAR data')
-            xlabel('range bin')
+            imagesc(obj.range_array, 1:size(rx_signal, 1), imag(rx_signal))
+            title('Imaginary value of received signal - raw ISAR data')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             
             subplot(1,2,2)
-            imagesc(real(rx_signal))
+            imagesc(obj.range_array, 1:size(rx_signal, 1), real(rx_signal))
             title('Real value of received signal - raw ISAR data')
-            xlabel('range bin')
+            xlabel('range [m]')
             ylabel('pulse index')
             colorbar
             
@@ -259,18 +268,18 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            plot(range_array, imag(rx_signal(1500, :)))
+            plot(range_array, imag(rx_signal(round(size(ranges,1)/2), :)))
             hold on
-            xline(ranges(1500), 'Color', 'r', 'LineWidth', 2, 'LineStyle','--')
-            title('Imaginary value of received signal for pulse 1500 - raw ISAR data')
+            xline(ranges(round(size(ranges,1)/2)), 'Color', 'r', 'LineWidth', 2, 'LineStyle','--')
+            title('Imaginary value of received signal for a singular pulse - raw ISAR data')
             xlabel('range [m]')
             ylabel('Amplitude')
-            
+
             subplot(1,2,2)
-            plot(range_array, real(rx_signal(1500, :)))
+            plot(range_array, real(rx_signal(round(size(ranges,1)/2), :)))
             hold on
-            xline(ranges(1500), 'Color', 'r', 'LineWidth', 2, 'LineStyle', '--')
-            title('Real value of received signal for pulse 1500 - raw ISAR data')
+            xline(ranges(round(size(ranges,1)/2)), 'Color', 'r', 'LineWidth', 2, 'LineStyle', '--')
+            title('Real value of received signal for a singular pulse - raw ISAR data')
             xlabel('range [m]')
             ylabel('Amplitude')
 
@@ -297,14 +306,14 @@ classdef plotting < handle
 
         end
 
-        function plot_range(obj, ranges)
+        function plot_range(obj, ranges, t_m)
 
             if obj.visible
                 figure
             else
                 f = figure('Visible','off');
             end
-            plot(ranges)
+            plot(t_m, ranges)
             title('Target Range')
             xlabel('Slow time')
             ylabel('Range')
@@ -352,7 +361,7 @@ classdef plotting < handle
             % create the video writer with 1 fps
             writerObj = VideoWriter('plots/target_trajectory', 'MPEG-4');
 
-            writerObj.FrameRate = 30; 
+            writerObj.FrameRate = 60; 
 
             % open the video writer
             open(writerObj);

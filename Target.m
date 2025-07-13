@@ -26,6 +26,7 @@ classdef Target < handle
         % each scatter
         num_scatters = 1;
         scatter_positions
+        scatter_configuration
 
         dt = 0.01; % [s] time iteration
     end
@@ -46,20 +47,21 @@ classdef Target < handle
 
                 % if there is only one scatter point then
                 % place it at the center of the target
+                obj.scatter_configuration = [0,0,0];
                 obj.scatter_positions = obj.position;
             
             elseif obj.num_scatters == 3
                 
                 % define the shape of the simulated aircraft
                 % as a triangle relative to the center
-                obj.scatter_positions = ...
-                    [0, 1, 0; ... % scatter 1
-                    0.5, -1, 0; ... % scatter 2
-                    -0.5, -1, 0]; % scatter 3
+                obj.scatter_configuration = ...
+                    [0, 20, 0; ... % scatter 1
+                    10, -20, 0; ... % scatter 2
+                    -10, -20, 0]; % scatter 3
 
                 % transform to the radar's reference frame
                 obj.scatter_positions = ...
-                    obj.scatter_positions + obj.position;
+                    obj.scatter_configuration + obj.position;
 
             else
                 warning('Currently this simulation is only capable of modeling 1 or 3 scatter points.')
@@ -100,6 +102,10 @@ classdef Target < handle
                 % propagate target velocity
                 obj.velocity = obj.velocity ...
                     + obj.acceleration * obj.dt; 
+
+                % transform to the radar's reference frame
+                obj.scatter_positions = ...
+                    obj.scatter_configuration + obj.position;
             end
         end
 

@@ -23,8 +23,9 @@ close all
 
 % instantiate plotting
 p = plotting();
-% p.plot_all = true;
+p.visible = true;
 p.plot_all = true;
+
 
 %% Define the tx signal parameters
 
@@ -58,9 +59,6 @@ dt_fast_time = 1/fs;
 t_hat = (0:dt_fast_time:Tp-1/fs)';
 range_array = t_hat .* const.c / 2;
 
-% range and cross-range resolution
-range_resolution = const.c / (2*B); % [m]
-cross_range_resolution = 0.5; % [m]
 
 %% Define the target trajectory
 
@@ -75,18 +73,18 @@ target = Target(dt_slow, target_position, num_scatters);
 
 % set straight line velocity towards the radar
 target.velocity = [-10, -10, 0];
-target.acceleration = [-2,-1,0];
-target.velocity_magnitude = norm(target.velocity);
+target.acceleration = [-5, -5, 0];
+% target.velocity_magnitude = norm(target.velocity);
+
+% initialize target velocity magnitude
+% target.velocity_magnitude = 40; % [m/s]
 
 % from the paper the target is traversing along a circular
 % parth (target radius not provided)
 % target.radius = 30; % [m]
 
-% initialize target velocity magnitude
-% target.velocity_magnitude = 100; % [m/s]
-
 % calculate the period of the target's rotation
-T = 10; % [s]
+T = 2; % [s]
 
 % calculate the number of pulses
 num_pulses = round(T / dt_slow);
@@ -95,14 +93,12 @@ num_range_bins = size(t_hat,1);
 % slow time array
 t_m = (0:dt_slow:T-dt_slow)';
 
-% full time array t = fast time + slow time [2]
-t = t_hat + t_m';
+% transmitted signal
+rect_tx = abs(t_hat/Tp) <= 1/2;
+tx_signal = rect_tx .* exp(1j * pi * (mu * t_hat.^2)); % baseband
 
-% define the transmitted signal [4]
-rect = abs(t_hat/Tp) <= 1/2; 
-tx_signal = rect .* exp(pi * 1j * ...
-    ( 2 * fc * t_hat + mu .* t_hat.^2 ));
 % tx_signal = exp( 2 * pi * -1j * fc * t_hat); % continuous wave
+
 
 %% Raw ISAR data
 
@@ -112,10 +108,10 @@ rx_signal = zeros(num_pulses, num_range_bins);
 R0 = zeros(target.num_scatters,1);
 
 % output vectors
-target_positions = zeros(num_pulses, size(target.position, 2));
-los_velocities = zeros(num_pulses, 1);
-ranges = zeros(num_pulses, 1);
-fds = zeros(num_pulses, 1);
+target_positions = zeros(num_pulses, size(target.position, 2), target.num_scatters);
+los_velocities = zeros(num_pulses, target.num_scatters);
+ranges = zeros(num_pulses, target.num_scatters);
+fds = zeros(num_pulses, target.num_scatters);
 
 % iterate through each pulse (column)
 for ipulse = 1:num_pulses
@@ -135,11 +131,12 @@ for ipulse = 1:num_pulses
         end
         los_vector = target.scatter_positions(ipt, :) ...
             / norm(target.scatter_positions(ipt, :));
-        los_velocities(ipulse) = ...
+        los_velocities(ipulse, ipt) = ...
             dot(target.velocity, los_vector);
         range = R0(ipt, :) ...
-            + sum(los_velocities) .* dt_slow;
-        ranges(ipulse) = range;
+            + sum(los_velocities(:,ipt)) .* dt_slow;
+
+        ranges(ipulse, ipt) = range;
 
         % calculate the instantaneous Doppler frequency from (8)
         % https://en.wikipedia.org/wiki/Doppler_effect
@@ -149,10 +146,14 @@ for ipulse = 1:num_pulses
         % range / dt, which is the velocity in the radial
         % direction
         fd = 2 * fc * los_velocities(ipulse) / const.c;
-        fds(ipulse) = fd;
+        fds(ipulse, ipt) = fd;
     
         % calculate the time delay
         tau = 2 * range / const.c;
+
+        if tau < 0 || tau > Tp
+            warning('delay out of bounds')
+        end
 
         % assume that only the target scattering points
         % reflect the signal and for now assume the
@@ -163,16 +164,24 @@ for ipulse = 1:num_pulses
         % [3]
         rect = abs((t_hat - tau)/Tp) <= 1/2; 
 
+        % the received signal originating from scatterer
+        rx_signal_scatterer = ...
+            rect .*exp(pi * 1j * ...
+            ( mu .* (t_hat - tau).^2 )); % baseband
+
+        % continuous wave
+        % rx_signal_scatterer = ...
+        %     exp( 2 * pi * -1j * fc * (t_hat - tau)); % continuous wave
+
+        % sum for total received signal
         rx_signal(ipulse, :) = ...
-            rect .* exp(pi * 1j * ...
-            ( 2 * fc * (t_hat - tau) ...
-            + mu .* (t_hat - tau).^2 ));
+            rx_signal(ipulse, :) + rx_signal_scatterer';
+
+        % save target position data
+        target_positions(ipulse, :, ipt) = target.position;
 
     end
     
-    % save target position data
-    target_positions(ipulse, :) = target.position;
-
     % propagate target
     target.propagate();
 
@@ -180,9 +189,11 @@ end
 
 % save data
 output_struct.ranges = ranges;
+output_struct.t_m = t_m;
 output_struct.rx_signal = rx_signal;
 output_struct.range_array = range_array;
 output_struct.target_positions = target_positions;
+
 
 %% Range compression
 % https://www.numberanalytics.com/blog/sar-signal-processing-essentials
@@ -191,14 +202,15 @@ output_struct.target_positions = target_positions;
 % transmitted signal pulse
 h = conj(flipud(tx_signal));
 rx_signal_range_compressed = zeros(size(rx_signal));
-for ipulse =1:num_pulses
+for ipulse =1:num_pulses    
     rx_signal_range_compressed(ipulse,:) = ...
-        conv(rx_signal(ipulse,:), h, 'same');
+        conv(rx_signal(ipulse,:), h', "same");
 end
 
 % save data 
 output_struct.rx_signal_range_compressed = ...
     rx_signal_range_compressed;
+
 
 %% Range tracking 
 
@@ -241,6 +253,7 @@ end
 % save data
 output_struct.rx_signal_aligned = rx_signal_aligned;
 
+
 %% Phase Adjustment (autofocus)
 
 % Phase adjustment is a way to sharpen the image along the
@@ -273,6 +286,7 @@ rx_autofocused = rx_signal_aligned .* correction;
 
 % save data
 output_struct.rx_autofocused = rx_autofocused;
+
 
 %% RD processing
 
