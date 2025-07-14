@@ -23,9 +23,8 @@ close all
 
 % instantiate plotting
 p = plotting();
-p.visible = true;
+p.visible = false;
 p.plot_all = true;
-
 
 %% Define the tx signal parameters
 
@@ -73,7 +72,7 @@ target = Target(dt_slow, target_position, num_scatters);
 
 % set straight line velocity towards the radar
 target.velocity = [-10, -10, 0];
-target.acceleration = [-5, -5, 0];
+target.acceleration = [-2, -9, 0];
 % target.velocity_magnitude = norm(target.velocity);
 
 % initialize target velocity magnitude
@@ -84,7 +83,7 @@ target.acceleration = [-5, -5, 0];
 % target.radius = 30; % [m]
 
 % calculate the period of the target's rotation
-T = 2; % [s]
+T = 5; % [s]
 
 % calculate the number of pulses
 num_pulses = round(T / dt_slow);
