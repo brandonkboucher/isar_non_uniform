@@ -23,6 +23,13 @@ classdef Constants
         deg2rad = pi/180;
         rad2deg = 180/pi;
 
+        ns2s = 1e-9;
+        s2ns = 1e9;
+        us2s = 1e-6;
+        s2us = 1e6;
+        ms2s = 1e-3;
+        s2ms = 1e3;
+
     end
 
 end

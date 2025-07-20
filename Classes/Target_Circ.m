@@ -55,9 +55,9 @@ classdef Target < handle
                 % define the shape of the simulated aircraft
                 % as a triangle relative to the center
                 obj.scatter_configuration = ...
-                    [0, 20, 0; ... % scatter 1
-                    10, -20, 0; ... % scatter 2
-                    -10, -20, 0]; % scatter 3
+                    [0, 15, 0; ... % scatter 1
+                    10, 0, 0; ... % scatter 2
+                    -10, 0, 0]; % scatter 3
 
                 % transform to the radar's reference frame
                 obj.scatter_positions = ...

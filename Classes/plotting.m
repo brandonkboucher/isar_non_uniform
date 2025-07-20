@@ -5,17 +5,18 @@ classdef plotting < handle
     properties
         
         visible = false
-        plot_all = false
+        bool_plot_all = false
 
-        plot_range_bool = false
-        plot_target_trajectory_bool = false
-        video_target_trajectory_bool = false
+        bool_plot_range = false
+        bool_plot_target_trajectory = false
+        bool_video_target_trajectory = false
+        bool_plot_target = false
 
-        plot_raw_isar_bool = false
-        plot_range_compressed_bool = false
-        plot_range_tracking_bool = false
-        plot_autofocus_bool = false
-        plot_rd_bool = false
+        bool_plot_raw_isar = false
+        bool_plot_range_compressed = false
+        bool_plot_range_tracking = false
+        bool_plot_autofocus = false
+        bool_plot_rd = false
 
         range_array
 
@@ -32,15 +33,16 @@ classdef plotting < handle
 
         function plot(obj, output_struct)
 
-            if obj.plot_range_bool ...
-                || obj.plot_target_trajectory_bool ...
-                || obj.video_target_trajectory_bool ...
-                || obj.plot_raw_isar_bool ...
-                || obj.plot_range_compressed_bool ...
-                || obj.plot_range_tracking_bool ...
-                || obj.plot_autofocus_bool ...
-                || obj.plot_rd_bool ...
-                || obj.plot_all
+            if obj.bool_plot_range ...
+                || obj.bool_plot_target_trajectory ...
+                || obj.bool_video_target_trajectory ...
+                || obj.bool_plot_raw_isar ...
+                || obj.bool_plot_range_compressed ...
+                || obj.bool_plot_range_tracking ...
+                || obj.bool_plot_autofocus ...
+                || obj.bool_plot_rd ...
+                || obj.bool_plot_target ...
+                || obj.bool_plot_all
 
                 delete plots/*.png
             end
@@ -49,30 +51,32 @@ classdef plotting < handle
                 obj.range_array = output_struct.range_array;
             end
 
-            if (obj.plot_target_trajectory_bool || obj.plot_all) ...
-                    && isfield(output_struct, 'target_positions')
-                obj.plot_trajectory(output_struct.target_positions)
+            if (obj.bool_plot_target_trajectory || obj.bool_plot_all) ...
+                    && isfield(output_struct, 'scatterer_positions')
+                obj.plot_trajectory(output_struct.scatterer_positions)
             end
 
-            if (obj.video_target_trajectory_bool)...
-                && isfield(output_struct, 'target_positions') ...
+            if (obj.bool_video_target_trajectory)...
+                && isfield(output_struct, 'scatterer_positions') ...
                 && isfield(output_struct, 't_m') ...
                 && isfield(output_struct, 'ranges') ...
+                && isfield(output_struct, 'target_positions') ...
                 && ~obj.visible
                 obj.video_trajectory(...
-                    output_struct.target_positions, ...
+                    output_struct.scatterer_positions, ...
                     output_struct.t_m, ...
-                    output_struct.ranges)
+                    output_struct.ranges, ...
+                    output_struct.target_positions)
             end
 
-            if (obj.plot_range_bool || obj.plot_all) ...
+            if (obj.bool_plot_range || obj.bool_plot_all) ...
                     && isfield(output_struct, 'ranges') ...
                     && isfield(output_struct, 't_m')
                 obj.plot_range(output_struct.ranges, ...
                     output_struct.t_m)
             end
 
-            if (obj.plot_raw_isar_bool || obj.plot_all) ...
+            if (obj.bool_plot_raw_isar || obj.bool_plot_all) ...
                     && isfield(output_struct, 'rx_signal') ...
                     && isfield(output_struct, 'range_array') ...
                     && isfield(output_struct, 'ranges')
@@ -81,24 +85,31 @@ classdef plotting < handle
                     output_struct.ranges)
             end
 
-            if (obj.plot_range_compressed_bool || obj.plot_all) ...
+            if (obj.bool_plot_range_compressed || obj.bool_plot_all) ...
                     && isfield(output_struct, 'rx_signal_range_compressed')
                 obj.plot_range_compressed(output_struct.rx_signal_range_compressed)
             end
 
-            if (obj.plot_range_tracking_bool || obj.plot_all) ...
+            if (obj.bool_plot_range_tracking || obj.bool_plot_all) ...
                     && isfield(output_struct, 'rx_signal_aligned')
                 obj.plot_range_tracking(output_struct.rx_signal_aligned)
             end
 
-            if (obj.plot_autofocus_bool || obj.plot_all) ...
+            if (obj.bool_plot_autofocus || obj.bool_plot_all) ...
                     && isfield(output_struct, 'rx_autofocused')
                 obj.plot_autofocus(output_struct.rx_autofocused)
             end
 
-            if (obj.plot_rd_bool || obj.plot_all) ...
+            if (obj.bool_plot_rd || obj.bool_plot_all) ...
                     && isfield(output_struct, 'rx_signal_rd')
                 obj.plot_rd(output_struct.rx_signal_rd)
+            end
+
+            if (obj.bool_plot_target || obj.bool_plot_all) ...
+                    && isfield(output_struct, 'ranges') ...
+                    && isfield(output_struct, 'target')
+                obj.plot_target(output_struct.ranges, ...
+                    output_struct.target)
             end
 
         end
@@ -130,11 +141,18 @@ classdef plotting < handle
             grid on
             axis square
             
-            buffer = 25;
-            
-            row_idx = max_row-buffer:max_row+buffer;
-            col_idx = max_col-buffer:max_col+buffer;
-            
+            buffers = [25,10,5,0];
+            for ibuffer = 1:size(buffers, 2)
+                
+                buffer = buffers(ibuffer);
+                row_idx = max_row-buffer:max_row+buffer;
+                col_idx = max_col-buffer:max_col+buffer;
+                
+                if col_idx(end) < size(obj.range_array,1)
+                    break
+                end
+            end
+
             if obj.visible
                 figure
             else
@@ -338,15 +356,49 @@ classdef plotting < handle
 
         end
 
-        function video_trajectory(obj, target_positions, t_m, ranges)
+        function plot_target(obj, ranges, target)
+
+            if obj.visible
+                figure
+            else
+                f = figure('Visible','off');
+            end
+
+            target_config = ...
+                target.scatter_configuration(:,1:2) ...
+                + ranges(1);
+
+            plot(target_config(:,1), target_config(:,2), 'Marker','*', 'LineStyle','none', 'MarkerSize', 10)
+            title('Target Scatter Initial positions')
+            xlabel('x (m)')
+            ylabel('y (m)')
+
+            buffer = 10;
+            xlim([min(target_config(:,1))-buffer, max(target_config(:,1))+buffer])
+            ylim([min(target_config(:,2))-buffer, max(target_config(:,2))+buffer])
+            grid on
+            axis square
+
+            if ~obj.visible
+                set(gcf, 'Position', get(0, 'Screensize'));
+                saveas(f, 'plots/target.png')
+            end
+
+        end
+
+        function video_trajectory(obj, scatterer_positions, t_m, ranges, target_positions)
+
+            % target positions dimensions:
+            % [nRanges x nScatters x Positions]
 
             f = figure('Visible','off');
             set(gcf, 'Position', get(0, 'Screensize'));
             subplot(1,2,1)
-            xmin = min([target_positions(:,1); 0]);
-            ymin = min([target_positions(:,2); 0]);
-            zmin = min([target_positions(:,3); 0]);
+            xmin = min([scatterer_positions(:,:,1); zeros(1, size(scatterer_positions, 2))], [],"all");
+            ymin = min([scatterer_positions(:,:,2); zeros(1, size(scatterer_positions, 2))], [], "all");
+            zmin = min([scatterer_positions(:,:,3); zeros(1, size(scatterer_positions, 2))], [], "all");
 
+            
             plot3( ...
                 target_positions(:,1), ...
                 target_positions(:,2), ...
@@ -358,10 +410,10 @@ classdef plotting < handle
             xlabel('X [m]')
             ylabel('Y [m]')
             zlabel('Z [m]')
-            xlim([xmin, max(target_positions(:,1:2),[], "all")])
-            ylim([ymin, max(target_positions(:,1:2),[], "all")])
-            zlim([zmin, max(target_positions(:,3))])
-            view([45 45])
+            xlim([xmin, max(scatterer_positions(:,:,1:2),[], "all")])
+            ylim([ymin, max(scatterer_positions(:,:,1:2),[], "all")])
+            zlim([zmin, max(scatterer_positions(:,:,3), [], "all")])
+            view([0 45])
             grid on
 
             subplot(1,2,2)
@@ -373,30 +425,72 @@ classdef plotting < handle
             grid on
             hold on
 
-            for ipt = 1:size(target_positions(:,1))
+            % we want a maximum of 500 images, if the ranges
+            % exceed 500 - downsample
+            total_frames = 50;
+            if size(scatterer_positions,1) > total_frames
+                step = ...
+                    round(size(scatterer_positions,1) / total_frames);
+                idx = 1:step:size(scatterer_positions,1);
+                step10 = round(size(idx,2) / 10);
+                idx10 = 1:step10:size(idx,2);
+                idx10 = idx(idx10);
+            else
+                idx = 1:size(scatterer_positions,1);
+            end
+        
+            j = 1;
+            fprintf('Creating video of target trajectory.\n')
+            for irange = idx
 
-                los_x = linspace(0, target_positions(ipt,1), 20);
-                los_y = linspace(0, target_positions(ipt,2), 20);
-                los_z = linspace(0, target_positions(ipt,3), 20);
+                if ismember(irange, idx10)
+                    fprintf('   %3.1f percent complete\n', (irange*100/size(scatterer_positions,1)))
+                end
+
+                los_x = linspace(0, target_positions(irange, 1), 20);
+                los_y = linspace(0, target_positions(irange, 2), 20);
+                los_z = linspace(0, target_positions(irange, 3), 20);
                 
                 subplot(1,2,1)
                 h = plot3(los_x, los_y, los_z, ...
-                    'Color', 'r', 'DisplayName', 'LOS', 'LineWidth', 2, 'LineStyle','--');
-                legend('Location','northeast')
+                    'Color', 'r', 'DisplayName', 'LOS to target center', 'LineWidth', 2, 'LineStyle','--');
+                hold on
+                g = [];
+                for iscatter = 1:size(scatterer_positions, 2)
                 
-                subplot(1,2,2)
-                k = plot(t_m(ipt), ranges(ipt), '*', 'Color', 'r', 'MarkerSize', 10, 'Marker','o');
+                    
+                    g = [g, plot3(scatterer_positions(irange, iscatter, 1), ...
+                        scatterer_positions(irange, iscatter, 2), ...
+                        scatterer_positions(irange, iscatter, 3), ...
+                    'Color', 'r', 'DisplayName', 'Scatterers', 'Marker','*', 'MarkerSize', 5, 'LineStyle','none')];
+                
+                    
+                end
 
+                ff = fill3(scatterer_positions(irange, :, 1), ...
+                    scatterer_positions(irange, :, 2), ...
+                    scatterer_positions(irange, :, 3), 'r');
 
-                F(ipt) = getframe(gcf);
+                legend([h, g(1)], {'LOS', 'scatterers'},'Location','northeast')
+                k = [];
+                for iscatter = 1:size(scatterer_positions, 2)
+                    subplot(1,2,2)
+                    k = [k, plot(t_m(irange), ...
+                        ranges(irange, iscatter), '*', 'Color', 'r', 'MarkerSize', 10, 'Marker','o')];
+                end
+
+                F(j) = getframe(gcf);
+                j = j + 1;
                 delete(h)
                 delete(k)
+                delete(g)
+                delete(ff)
             end
 
             % create the video writer with 1 fps
             writerObj = VideoWriter('plots/target_trajectory', 'MPEG-4');
 
-            writerObj.FrameRate = 60; 
+            writerObj.FrameRate = 30; 
 
             % open the video writer
             open(writerObj);
@@ -409,14 +503,13 @@ classdef plotting < handle
             % close the writer object
             close(writerObj);
 
-
         end
 
-        function plot_trajectory(obj, target_positions)
+        function plot_trajectory(obj, scatterer_positions)
             
-            xmin = min([target_positions(:,1); 0]);
-            ymin = min([target_positions(:,2); 0]);
-            zmin = min([target_positions(:,3); 0]);
+            xmin = min([scatterer_positions(:,1); 0]);
+            ymin = min([scatterer_positions(:,2); 0]);
+            zmin = min([scatterer_positions(:,3); 0]);
 
             if obj.visible
                 figure
@@ -425,24 +518,24 @@ classdef plotting < handle
             end
             
             plot3( ...
-                target_positions(:,1), ...
-                target_positions(:,2), ...
-                target_positions(:,3), 'DisplayName', 'Target Trajectory')
+                scatterer_positions(:,1), ...
+                scatterer_positions(:,2), ...
+                scatterer_positions(:,3), 'DisplayName', 'Target Trajectory')
             
             hold on
 
             xlabel('X')
             ylabel('Y')
             zlabel('Z')
-            xlim([xmin, max(target_positions(:,1:2),[], "all")])
-            ylim([ymin, max(target_positions(:,1:2),[], "all")])
-            zlim([zmin, max(target_positions(:,3))])
+            xlim([xmin, max(scatterer_positions(:,1:2),[], "all")])
+            ylim([ymin, max(scatterer_positions(:,1:2),[], "all")])
+            zlim([zmin, max(scatterer_positions(:,3))])
             
             ipt = 1;
 
-            los_x = linspace(0, target_positions(ipt,1), 20);
-            los_y = linspace(0, target_positions(ipt,2), 20);
-            los_z = linspace(0, target_positions(ipt,3), 20);
+            los_x = linspace(0, scatterer_positions(ipt,1), 20);
+            los_y = linspace(0, scatterer_positions(ipt,2), 20);
+            los_z = linspace(0, scatterer_positions(ipt,3), 20);
             h = plot3(los_x, los_y, los_z, 'Color', 'r', 'DisplayName', 'LOS');
             legend('Location','northeast')
 

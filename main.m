@@ -17,6 +17,7 @@
 % [2] https://en.wikipedia.org/wiki/Chirp
 % [3] ISAR Imaging of Targets With Complex Motion Based on Discrete Chirp Fourier Transform for Cubic Chirps
 % [4] https://ieeexplore.ieee.org/abstract/document/7985358
+clear
 close all
 
 %% Define plotting parameters
@@ -24,27 +25,31 @@ close all
 % instantiate plotting
 p = plotting();
 p.visible = false;
-p.plot_all = true;
+p.bool_plot_raw_isar = true;
+p.bool_plot_range_compressed = true;
+%p.bool_video_target_trajectory = true;
 
 %% Define the tx signal parameters
 
 % instantiate constants
 const = Constants;
 
-% center frequency
-fc = 16.7 * const.GHz2Hz; % [Hz]
+% center frequency - X-band
+fc = 10 * const.GHz2Hz; % [Hz]
 
 % bandwidth
-B = 150 * const.MHz2Hz; % [Hz]
+B = 100 * const.MHz2Hz; % [Hz]
 
 % pulse repetition frequency (not provided)
-prf = 250; % [Hz] not provided in paper
+prf = 1 * const.kHz2Hz; % [Hz] this will become non-linear
 
-% sampling frequency (not used in paper)
-fs = 50 * const.MHz2Hz; % [Hz]
+% sampling frequency (not used in paper) must be greater
+% than 2*Bandwidth
+% https://en.wikipedia.org/wiki/Nyquist–Shannon_sampling_theorem
+fs = 300 * const.MHz2Hz; % [Hz]
 
 % pulse width
-Tp = 5e-6; % [s]
+Tp = 10 * const.us2s; % [s]
 
 % define the chirping rate
 mu = B / Tp;
@@ -58,32 +63,13 @@ dt_fast_time = 1/fs;
 t_hat = (0:dt_fast_time:Tp-1/fs)';
 range_array = t_hat .* const.c / 2;
 
+% calculate the range resolution
+range_resolution = const.c / (2 * B);
 
-%% Define the target trajectory
+%% Define simulation parameters
 
-% define the number of scattering points off of the target
-num_scatters = 1;
-
-% define the target's initial position
-target_position = [70.8, 117.5, 500];
-
-% intialize target
-target = Target(dt_slow, target_position, num_scatters);
-
-% set straight line velocity towards the radar
-target.velocity = [-10, -10, 0];
-target.acceleration = [-2, -9, 0];
-% target.velocity_magnitude = norm(target.velocity);
-
-% initialize target velocity magnitude
-% target.velocity_magnitude = 40; % [m/s]
-
-% from the paper the target is traversing along a circular
-% parth (target radius not provided)
-% target.radius = 30; % [m]
-
-% calculate the period of the target's rotation
-T = 5; % [s]
+% define the length of the simulation
+T = 10; % [s]
 
 % calculate the number of pulses
 num_pulses = round(T / dt_slow);
@@ -92,12 +78,32 @@ num_range_bins = size(t_hat,1);
 % slow time array
 t_m = (0:dt_slow:T-dt_slow)';
 
+%% Define the target trajectory
+
+% define the number of scattering points off of the target
+num_scatters = 3;
+
+% define the target's initial position
+target_position = [70.8, 117.5, 500];
+
+% intialize target
+target = Target(dt_slow, target_position, num_scatters);
+
+% set straight line velocity towards the radar
+target.velocity = [0, -10, 0];
+target.p = (2*pi) / T; % rotate 360 degrees over the course of the simulation
+%target.p_dot = pi / T;
+
+%% Define the transmitted signal
+
 % transmitted signal
 rect_tx = abs(t_hat/Tp) <= 1/2;
 tx_signal = rect_tx .* exp(1j * pi * (mu * t_hat.^2)); % baseband
 
 % tx_signal = exp( 2 * pi * -1j * fc * t_hat); % continuous wave
 
+% save data
+output_struct.target = target;
 
 %% Raw ISAR data
 
@@ -107,13 +113,20 @@ rx_signal = zeros(num_pulses, num_range_bins);
 R0 = zeros(target.num_scatters,1);
 
 % output vectors
-target_positions = zeros(num_pulses, size(target.position, 2), target.num_scatters);
+scatterer_positions = zeros(num_pulses, size(target.position, 2), target.num_scatters);
+target_positions = zeros(num_pulses, size(target.position, 2));
 los_velocities = zeros(num_pulses, target.num_scatters);
 ranges = zeros(num_pulses, target.num_scatters);
 fds = zeros(num_pulses, target.num_scatters);
 
+fprintf('Propagating simulation\n')
+
 % iterate through each pulse (column)
 for ipulse = 1:num_pulses
+
+    if mod(ipulse, num_pulses/10) == 0
+        fprintf('   %i percent complete\n', (ipulse*100/num_pulses))
+    end
 
     % iterate through each target scatter
     for ipt = 1:target.num_scatters
@@ -177,7 +190,10 @@ for ipulse = 1:num_pulses
             rx_signal(ipulse, :) + rx_signal_scatterer';
 
         % save target position data
-        target_positions(ipulse, :, ipt) = target.position;
+        scatterer_positions(ipulse, ipt, :) = ...
+            target.scatter_positions(ipt, :);
+        target_positions(ipulse, :) = ...
+            target.position;
 
     end
     
@@ -191,9 +207,10 @@ output_struct.ranges = ranges;
 output_struct.t_m = t_m;
 output_struct.rx_signal = rx_signal;
 output_struct.range_array = range_array;
+output_struct.scatterer_positions = scatterer_positions;
 output_struct.target_positions = target_positions;
 
-
+fprintf('Performing post-processing.\n')
 %% Range compression
 % https://www.numberanalytics.com/blog/sar-signal-processing-essentials
 
@@ -297,5 +314,10 @@ rx_signal_rd = ...
 % save data
 output_struct.rx_signal_rd = rx_signal_rd;
 
+fprintf('Plotting results.\n')
+
 % plot
 p.plot(output_struct);
+
+
+fprintf('Simulation complete.\n')
