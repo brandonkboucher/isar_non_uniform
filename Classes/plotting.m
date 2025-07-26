@@ -490,7 +490,7 @@ classdef plotting < handle
             % create the video writer with 1 fps
             writerObj = VideoWriter('plots/target_trajectory', 'MPEG-4');
 
-            writerObj.FrameRate = 30; 
+            writerObj.FrameRate = 10; 
 
             % open the video writer
             open(writerObj);
