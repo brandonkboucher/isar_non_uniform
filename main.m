@@ -24,9 +24,10 @@ close all
 
 % instantiate plotting
 p = plotting();
-p.visible = false;
+p.visible = true;
 p.bool_plot_raw_isar = true;
 p.bool_plot_range_compressed = true;
+p.bool_plot_rd = true;
 %p.bool_video_target_trajectory = true;
 
 %% Define the tx signal parameters
@@ -38,7 +39,7 @@ const = Constants;
 fc = 10 * const.GHz2Hz; % [Hz]
 
 % bandwidth
-B = 100 * const.MHz2Hz; % [Hz]
+B = 149.9 * const.MHz2Hz; % [Hz]
 
 % pulse repetition frequency (not provided)
 prf = 1 * const.kHz2Hz; % [Hz] this will become non-linear
@@ -49,7 +50,10 @@ prf = 1 * const.kHz2Hz; % [Hz] this will become non-linear
 fs = 300 * const.MHz2Hz; % [Hz]
 
 % pulse width
-Tp = 10 * const.us2s; % [s]
+Tp = 5 * const.us2s; % [s]
+max_expected_range = 520; % [m]
+tau_max = 2 * max_expected_range / const.c;
+padding = 1*const.us2s; % [s] additional padding
 
 % define the chirping rate
 mu = B / Tp;
@@ -60,7 +64,8 @@ dt_slow = 1/prf; % [s]
 % create a time array corresponding to the fast time
 % sampling
 dt_fast_time = 1/fs;
-t_hat = (0:dt_fast_time:Tp-1/fs)';
+t_hat = (0:dt_fast_time:(Tp + tau_max + padding)-(1/fs))';
+t_chirp = (0:dt_fast_time:Tp - (1/fs))';
 range_array = t_hat .* const.c / 2;
 
 % calculate the range resolution
@@ -74,6 +79,7 @@ T = 10; % [s]
 % calculate the number of pulses
 num_pulses = round(T / dt_slow);
 num_range_bins = size(t_hat,1);
+num_chirp_bins = size(t_chirp, 1);
 
 % slow time array
 t_m = (0:dt_slow:T-dt_slow)';
@@ -97,8 +103,8 @@ target.p = (2*pi) / T; % rotate 360 degrees over the course of the simulation
 %% Define the transmitted signal
 
 % transmitted signal
-rect_tx = abs(t_hat/Tp) <= 1/2;
-tx_signal = rect_tx .* exp(1j * pi * (mu * t_hat.^2)); % baseband
+rect_tx = abs(t_chirp/Tp) <= 1/2;
+tx_signal = rect_tx .* exp(1j * pi * (mu * t_chirp.^2)); % baseband
 
 % tx_signal = exp( 2 * pi * -1j * fc * t_hat); % continuous wave
 
@@ -114,10 +120,8 @@ R0 = zeros(target.num_scatters,1);
 
 % output vectors
 scatterer_positions = zeros(num_pulses, size(target.position, 2), target.num_scatters);
-target_positions = zeros(num_pulses, size(target.position, 2));
-los_velocities = zeros(num_pulses, target.num_scatters);
-ranges = zeros(num_pulses, target.num_scatters);
-fds = zeros(num_pulses, target.num_scatters);
+target_positions    = zeros(num_pulses, size(target.position, 2));
+ranges              = zeros(num_pulses, target.num_scatters);
 
 fprintf('Propagating simulation\n')
 
@@ -136,18 +140,20 @@ for ipulse = 1:num_pulses
         % range = norm(target.scatter_positions(ipt, :));
         % ranges(ipulse) = range;
 
-        % explicit Doppler representation, determining the
-        % range using the velocity along the line-of-sight
+        % calculate the target's range
         if ipulse == 1
             R0(ipt, :) = norm(target.scatter_positions(ipt, :));
         end
+        % calculate the normalized los vector
         los_vector = target.scatter_positions(ipt, :) ...
             / norm(target.scatter_positions(ipt, :));
-        los_velocities(ipulse, ipt) = ...
-            dot(target.velocity, los_vector);
-        range = R0(ipt, :) ...
-            + sum(los_velocities(:,ipt)) .* dt_slow;
-
+        
+        % calculate the los velocity
+        los_velocity = dot(target.velocity, los_vector);
+        
+        % calculate the range resulting from a change in the
+        % los velocity
+        range = R0(ipt, :) + sum(los_velocity) .* dt_slow;
         ranges(ipulse, ipt) = range;
 
         % calculate the instantaneous Doppler frequency from (8)
@@ -157,8 +163,7 @@ for ipulse = 1:num_pulses
         % the Doppler frequency is defined as (2/lambda)*d
         % range / dt, which is the velocity in the radial
         % direction
-        fd = 2 * fc * los_velocities(ipulse) / const.c;
-        fds(ipulse, ipt) = fd;
+        fd = 2 * fc * los_velocity / const.c;
     
         % calculate the time delay
         tau = 2 * range / const.c;
@@ -167,34 +172,68 @@ for ipulse = 1:num_pulses
             warning('delay out of bounds')
         end
 
+        % ensure Doppler shift begins where the target
+        % returns a signal
+        t_echo = (0:num_chirp_bins-1)' * dt_fast_time + tau;
+
+        % Doppler correction term
+        tx_doppler = exp(1j * 2 * pi * fd * t_echo);
+
         % assume that only the target scattering points
         % reflect the signal and for now assume the
         % reflectivity is perfect
         reflectivity = 1;
 
+        % determine index corresponding to 
+        delay_idx = round(tau / dt_fast_time);
+
+        % double check to ensure the delay index aligns with
+        % the range calculation
+        [~, target_idx] = min(abs(range_array - range));
+
+        % initialize echo as zeros
+        echo = zeros(num_range_bins, 1);
+        
+        % ensure the echo is completely encapsulated by the
+        % total number of range bins
+        if delay_idx + num_chirp_bins - 1 <= num_range_bins
+
+            % the echo is the transmitted signal modified by
+            % the target's reflectivity and the Doppler
+            % shift resulting from the target's radial
+            % motion
+            echo(delay_idx : delay_idx + num_chirp_bins - 1) = ...
+                echo(delay_idx : delay_idx + num_chirp_bins - 1) ...    
+                + reflectivity * tx_signal .* tx_doppler;
+        else
+            warning('Echo extends beyond fast time window.')
+        end
+        
+        rx_signal(ipulse, :) = rx_signal(ipulse, :) + echo.';
+
         % model the received LFM signal shifted by the delay
         % [3]
-        rect = abs((t_hat - tau)/Tp) <= 1/2; 
+        % rect = abs((t_hat - tau)/Tp) <= 1/2; 
 
         % the received signal originating from scatterer
-        rx_signal_scatterer = ...
-            rect .*exp(pi * 1j * ...
-            ( mu .* (t_hat - tau).^2 )); % baseband
+        % rx_signal_scatterer = ...
+        %     rect .*exp(pi * 1j * ...
+        %     ( mu .* (t_hat - tau).^2 )); % baseband
 
         % continuous wave
         % rx_signal_scatterer = ...
         %     exp( 2 * pi * -1j * fc * (t_hat - tau)); % continuous wave
 
         % sum for total received signal
-        rx_signal(ipulse, :) = ...
-            rx_signal(ipulse, :) + rx_signal_scatterer';
+        % rx_signal(ipulse, :) = ...
+        %     rx_signal(ipulse, :) + rx_signal_scatterer';
 
         % save target position data
         scatterer_positions(ipulse, ipt, :) = ...
             target.scatter_positions(ipt, :);
         target_positions(ipulse, :) = ...
             target.position;
-
+        
     end
     
     % propagate target
@@ -220,8 +259,12 @@ h = conj(flipud(tx_signal));
 rx_signal_range_compressed = zeros(size(rx_signal));
 for ipulse =1:num_pulses    
     rx_signal_range_compressed(ipulse,:) = ...
-        conv(rx_signal(ipulse,:), h', "same");
+        conv(rx_signal(ipulse,:), h, "same");
 end
+
+% adjust the range axis by the match filter's group delay
+range_array = range_array - (Tp * const.c / 4);
+output_struct.range_array = range_array;
 
 % save data 
 output_struct.rx_signal_range_compressed = ...
@@ -270,7 +313,7 @@ end
 output_struct.rx_signal_aligned = rx_signal_aligned;
 
 
-%% Phase Adjustment (autofocus)
+%% Phase Adjustment
 
 % Phase adjustment is a way to sharpen the image along the
 % cross-range direction prior to Range-Doppler processing,
