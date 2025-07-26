@@ -24,11 +24,9 @@ close all
 
 % instantiate plotting
 p = plotting();
-p.visible = true;
-p.bool_plot_raw_isar = true;
-p.bool_plot_range_compressed = true;
-p.bool_plot_rd = true;
-%p.bool_video_target_trajectory = true;
+p.visible = false;
+p.bool_plot_all = true;
+p.bool_video_target_trajectory = true;
 
 %% Define the tx signal parameters
 
@@ -120,6 +118,7 @@ R0 = zeros(target.num_scatters,1);
 
 % output vectors
 scatterer_positions = zeros(num_pulses, size(target.position, 2), target.num_scatters);
+los_velocities      = zeros(num_pulses, target.num_scatters);
 target_positions    = zeros(num_pulses, size(target.position, 2));
 ranges              = zeros(num_pulses, target.num_scatters);
 
@@ -149,11 +148,13 @@ for ipulse = 1:num_pulses
             / norm(target.scatter_positions(ipt, :));
         
         % calculate the los velocity
-        los_velocity = dot(target.velocity, los_vector);
-        
+        los_velocities(ipulse, ipt) = ...
+            dot(target.velocity, los_vector);
+
         % calculate the range resulting from a change in the
         % los velocity
-        range = R0(ipt, :) + sum(los_velocity) .* dt_slow;
+        range = R0(ipt, :) ...
+            + sum(los_velocities(:,ipt)) .* dt_slow;
         ranges(ipulse, ipt) = range;
 
         % calculate the instantaneous Doppler frequency from (8)
@@ -163,7 +164,7 @@ for ipulse = 1:num_pulses
         % the Doppler frequency is defined as (2/lambda)*d
         % range / dt, which is the velocity in the radial
         % direction
-        fd = 2 * fc * los_velocity / const.c;
+        fd = 2 * fc * los_velocities(ipulse, ipt) / const.c;
     
         % calculate the time delay
         tau = 2 * range / const.c;
