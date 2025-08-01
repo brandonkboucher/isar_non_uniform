@@ -23,6 +23,8 @@ classdef plotting < handle
         title_font_size = 24;
         label_font_size = 16;
 
+        plot_folder = ''
+
     end
     
     methods
@@ -31,7 +33,7 @@ classdef plotting < handle
             
         end
 
-        function plot(obj, output_struct)
+        function plot(obj, output_struct, varargin)
 
             if obj.bool_plot_range ...
                 || obj.bool_plot_target_trajectory ...
@@ -45,6 +47,12 @@ classdef plotting < handle
                 || obj.bool_plot_all
 
                 delete plots/*.png
+            end
+
+            if numel(varargin) > 0
+                folder = varargin{1};
+                obj.plot_folder = ['plots/', folder, '/'];
+                mkdir(obj.plot_folder)
             end
 
             if isfield(output_struct, 'range_array')
@@ -168,7 +176,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/rd.png')
+                saveas(f, [obj.plot_folder, 'rd.png'])
             end
 
         end
@@ -198,7 +206,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/autofocus.png')
+                saveas(f, [obj.plot_folder, 'autofocus.png'])
             end
 
         end
@@ -228,7 +236,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/range_tracking.png')
+                saveas(f, [obj.plot_folder, 'range_tracking.png'])
             end
 
         end
@@ -258,7 +266,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/range_compression.png')
+                saveas(f, [obj.plot_folder, 'range_compression.png'])
             end
 
         end
@@ -279,7 +287,7 @@ classdef plotting < handle
             % axis square
             
             % subplot(1,2,1)
-            imagesc(obj.range_array, 1:size(rx_signal, 1), real(rx_signal))
+            imagesc(range_array, 1:size(rx_signal, 1), real(rx_signal))
             title('Real value of received signal - raw ISAR data', 'FontSize', obj.title_font_size)
             xlabel('range [m]', 'FontSize', obj.label_font_size)
             ylabel('pulse index', 'FontSize', obj.label_font_size)
@@ -288,7 +296,7 @@ classdef plotting < handle
             
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/raw_data1.png')
+                saveas(f, [obj.plot_folder, 'raw_data1.png'])
             end
             % 
             if obj.visible
@@ -316,7 +324,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/raw_data2.png')
+                saveas(f, [obj.plot_folder, 'raw_data2.png'])
             end
             
             if obj.visible
@@ -331,7 +339,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/raw_data3.png')
+                saveas(f, [obj.plot_folder, 'raw_data3.png'])
             end
 
         end
@@ -351,7 +359,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/range.png')
+                saveas(f, [obj.plot_folder, 'range.png'])
             end
 
         end
@@ -381,7 +389,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/target.png')
+                saveas(f, [obj.plot_folder, 'target.png'])
             end
 
         end
@@ -488,7 +496,7 @@ classdef plotting < handle
             end
 
             % create the video writer with 1 fps
-            writerObj = VideoWriter('plots/target_trajectory', 'MPEG-4');
+            writerObj = VideoWriter([obj.plot_folder, 'target_trajectory'], 'MPEG-4');
 
             writerObj.FrameRate = 10; 
 
@@ -541,7 +549,7 @@ classdef plotting < handle
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, 'plots/trajectory.png')
+                saveas(f, [obj.plot_folder, 'trajectory.png'])
             end
                 
         end

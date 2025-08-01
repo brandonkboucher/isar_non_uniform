@@ -3,6 +3,7 @@ function [rx_autofocused,output_struct] = phase_adjustment(...
     rx_signal_aligned, ...
     K, ... % number of bright scatterers
     output_struct)
+    
     %% Phase Adjustment
     
     % Phase adjustment is a way to sharpen the image along the
@@ -28,7 +29,7 @@ function [rx_autofocused,output_struct] = phase_adjustment(...
     
     % apply the phase correction over the range bins
     correction = exp(-1j * phases);
-    rx_autofocused = rx_signal_aligned .* correction;
+    rx_autofocused = rx_signal_aligned .* mean(correction, 2);
     
     % save data
     output_struct.rx_autofocused = rx_autofocused;

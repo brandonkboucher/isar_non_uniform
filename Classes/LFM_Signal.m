@@ -13,9 +13,11 @@ classdef LFM_Signal
         dt_fast_time
 
         t_hat
+        t_m
         t_chirp
         range_array
 
+        cross_range_resolution
         range_resolution
         num_pulses
         num_range_bins
@@ -26,7 +28,7 @@ classdef LFM_Signal
     end
     
     methods
-        function obj = LFM_Signal(fc,B,prf,fs,Tp,T)
+        function obj = LFM_Signal(fc,B,prf,fs,Tp,T, max_expected_range)
             
             % instantiate constants
             const = Constants;
@@ -50,7 +52,6 @@ classdef LFM_Signal
             
             % create a time array corresponding to the fast time
             % sampling
-            max_expected_range = 520; % [m]
             tau_max = 2 * max_expected_range / const.c;
             padding = 1 * const.us2s; % [s] additional padding
             
@@ -58,6 +59,9 @@ classdef LFM_Signal
             obj.dt_fast_time = 1/obj.fs;
             obj.t_hat = (0:obj.dt_fast_time:(obj.Tp + tau_max + padding)-(1/obj.fs))';
             
+            % slow time array
+            obj.t_m = (0:obj.dt_slow:T-obj.dt_slow)';
+
             % define the chirp time array
             obj.t_chirp = (0:obj.dt_fast_time:obj.Tp - (1/obj.fs))';
             obj.range_array = obj.t_hat .* const.c / 2;

@@ -71,7 +71,7 @@ classdef Target < handle
             % define the shape of the simulated aircraft
             % as a triangle relative to the center
             obj.radius_to_scatterer = 5;
-            obj.target_length = 20;
+            obj.target_length = 10;
 
             obj.scatter_configuration = ...
                 [0, -obj.target_length, 0; ... % scatter 1
