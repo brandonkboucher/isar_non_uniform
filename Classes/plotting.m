@@ -144,6 +144,18 @@ classdef plotting < handle
 
             end
 
+            if (obj.bool_plot_range ) ...
+                    && isfield(output_struct, 'ranges') ...
+                    && isfield(output_struct, 't_m') ...
+                    && isfield(output_struct, 'scatterer_positions') ...
+                    && ~isa(output_struct.target, 'Target_Simple')
+                
+                obj.plot_ranges_and_trajectory(...
+                    output_struct.ranges, ...
+                    output_struct.t_m, ...
+                    output_struct.scatterer_positions)
+            end
+
         end
 
         function set.bool_plot_all(obj, bool_plot_all)
@@ -214,7 +226,7 @@ classdef plotting < handle
                 saveas(f, [obj.plot_folder, 'rd1.png'])
             end
 
-            buffers = [25, 10, 5];
+            buffers = [50, 10, 5];
             for ibuffer = 1:size(buffers, 2)
                 
                 buffer = buffers(ibuffer);
@@ -235,7 +247,7 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            subplot(1,2,1)
+            % subplot(1,2,1)
             imagesc(obj.range_array(col_idx), obj.doppler_array(row_idx), ...
                 abs(rx_signal_rd(row_idx, col_idx)))
             title('Range-Doppler ISAR image - Zoomed near dominant scatterer','FontSize', obj.title_font_size)
@@ -245,14 +257,14 @@ classdef plotting < handle
             axis square
             set(gca,'FontSize',obj.axis_font_size)
             
-            subplot(1,2,2)
-            semilogy(obj.range_array, abs(rx_signal_rd(max_row, :)))
-            title('Range profile for dominant scatterer', 'FontSize', obj.title_font_size)
-            ylabel('Log scale amplitude', 'FontSize', obj.label_font_size)
-            xlabel('Range [m]', 'FontSize', obj.label_font_size)
-            grid on
-            axis square
-            set(gca,'FontSize',obj.axis_font_size)
+            % subplot(1,2,2)
+            % semilogy(obj.range_array, abs(rx_signal_rd(max_row, :)))
+            % title('Range profile for dominant scatterer', 'FontSize', obj.title_font_size)
+            % ylabel('Log scale amplitude', 'FontSize', obj.label_font_size)
+            % xlabel('Range [m]', 'FontSize', obj.label_font_size)
+            % grid on
+            % axis square
+            % set(gca,'FontSize',obj.axis_font_size)
             
 
             if ~obj.visible
@@ -667,24 +679,72 @@ classdef plotting < handle
     
                 
             end
-
-            xlabel('X')
-            ylabel('Y')
+            
             xlim([xmin, max(scatterer_positions(:,:,1),[], "all")])
             ylim([ymin, max(scatterer_positions(:,:,2),[], "all")])
-            % ipt = 1;
-            % 
-            % los_x = linspace(0, scatterer_positions(ipt,1), 20);
-            % los_y = linspace(0, scatterer_positions(ipt,2), 20);
-            % h = plot(los_x, los_y, 'Color', 'r', 'DisplayName', 'LOS');
-            % legend('Location','northeast')
-            % set(gca,'FontSize',obj.axis_font_size)
+            
+            title('Target Trajectory', 'FontSize', obj.title_font_size)
+            xlabel('X [m]', 'FontSize', obj.label_font_size)
+            ylabel('Y [m]', 'FontSize', obj.label_font_size)
+            grid on
+            axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'trajectory2d.png'])
             end
                 
+        end
+
+        function plot_ranges_and_trajectory(obj, ranges, t_m, scatterer_positions)
+
+
+            %% range
+            if obj.visible
+                figure
+            else
+                f = figure('Visible','off');
+            end
+            subplot(1,2,1)
+            plot(t_m, ranges, 'LineWidth', 2)
+            title('Target Range')
+            xlabel('Slow time')
+            ylabel('Range')
+            axis square
+            set(gca,'FontSize',obj.axis_font_size)
+            
+            %% trajectory
+            xmin = min([scatterer_positions(:,:,1)], [], "all");
+            ymin = min([scatterer_positions(:,:,2)], [], "all");
+            subplot(1,2,2)
+            for ipt = 1:size(scatterer_positions, 2)
+
+                plot( ...
+                    scatterer_positions(:,ipt,1), ...
+                    scatterer_positions(:,ipt,2), ...
+                    'DisplayName', 'Target Trajectory', 'Marker','+', 'LineStyle','none')
+                
+                hold on
+    
+                
+            end
+            
+            xlim([xmin, max(scatterer_positions(:,:,1),[], "all")])
+            ylim([ymin, max(scatterer_positions(:,:,2),[], "all")])
+            
+            title('Target Trajectory', 'FontSize', obj.title_font_size)
+            xlabel('X [m]', 'FontSize', obj.label_font_size)
+            ylabel('Y [m]', 'FontSize', obj.label_font_size)
+            grid on
+            axis square
+            set(gca,'FontSize',obj.axis_font_size)
+            
+            if ~obj.visible
+                set(gcf, 'Position', get(0, 'Screensize'));
+                saveas(f, [obj.plot_folder, 'range_and_trajectory2d.png'])
+            end
+
         end
 
     end
