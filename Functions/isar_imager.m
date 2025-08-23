@@ -1,7 +1,6 @@
-function output_struct = isar_imager(signal,target)
+function output_struct = isar_imager(signal,target, sim_params)
     
-    % instantiate constants
-    const = Constants;
+    %% Preprocssing
 
     simStart = tic;
     
@@ -10,8 +9,24 @@ function output_struct = isar_imager(signal,target)
     output_struct.target = target;
     output_struct.t_m = signal.t_m;
 
+    % check input simulation parameters
+    if ~sim_params.range_doppler ...
+            && ~sim_params.backprojection
+        error('Either Range-Doppler processing or Backprojection must be enabled.')
+    end
 
-    %% ISAR Imaging
+    if sim_params.backprojection
+        % calculate the angular extent over the course of the target
+        % flyout
+        yaw = target.yaw .* signal.t_m ...   
+            + (1/2) * target.yawing_rate .* signal.t_m .^ 2;
+        angular_extent = yaw(end);
+        if angular_extent > 2*pi; angular_extent = 2*pi; end
+        signal.cross_range_resolution = ...
+            const.c / (2 * angular_extent * signal.fc);
+    end
+
+    %% Range Compression
     
     % formulate the raw isar image
     [rx_signal, output_struct] = ...
@@ -19,39 +34,73 @@ function output_struct = isar_imager(signal,target)
     
     fprintf('Performing post-processing.\n')
     
-    % perform range compression via a matched filter by
-    % evaluating a convolution of the received signal with a
-    % time reverse conjugate of the transmitted signal
-    fprintf('   Range compression.\n')
-    [rx_signal_range_compressed,output_struct] = ...
-        range_compression(...
-        signal, ...
-        rx_signal, ...
-        output_struct);
-    
-    % align the range profiles across all pulses relative to a
-    % reference range profile
-    fprintf('   Range alignment.\n')
-    [rx_signal_aligned,output_struct] = range_tracking( ...
-        signal, ...
-        rx_signal_range_compressed, ...
-        output_struct);
+    if sim_params.range_compression
 
-    % perform coarse phase correction based on dominant
-    % scatterers
-    % fprintf('   Phase adjustment.\n')
-    % [rx_autofocused,output_struct] = phase_adjustment(...
-    %     rx_signal_aligned, ...
-    %     3, ... % number of bright scatterers
-    %     output_struct);
-
-    % perform Range-Doppler processing across pulses to
-    % formulate the final ISAR image
-    fprintf('   Range-Doppler.\n')
-    [rx_signal_rd,output_struct] = rd_processing( ...
-        rx_signal_aligned,...
-        output_struct);
+        % perform range compression via a matched filter by
+        % evaluating a convolution of the received signal with a
+        % time reverse conjugate of the transmitted signal
+        fprintf('   Range compression.\n')
+        [rx_signal,output_struct] = ...
+            range_compression(...
+            signal, ...
+            rx_signal, ...
+            output_struct);
+    end
     
+    %% Range Alignment
+
+    if sim_params.range_alignment
+
+        % align the range profiles across all pulses relative to a
+        % reference range profile
+        fprintf('   Range alignment.\n')
+        [rx_signal,output_struct] = range_tracking( ...
+            signal, ...
+            rx_signal, ...
+            output_struct);
+    end
+
+    %% Phase Adjustment
+
+    if sim_params.phase_adjustment
+
+        % perform coarse phase correction based on dominant
+        % scatterers
+        fprintf('   Phase adjustment.\n')
+        [rx_signal,output_struct] = phase_adjustment(...
+            rx_signal, ...
+            3, ... % number of bright scatterers
+            output_struct);
+    end
+
+    %% Image formation
+
+    if sim_params.range_doppler
+
+        % perform Range-Doppler processing across pulses to
+        % formulate the final ISAR image
+        fprintf('   Range-Doppler.\n')
+        [rx_signal,output_struct] = rd_processing( ...
+            rx_signal,...
+            output_struct);
+    
+    else
+        
+        % perform backprojection to form ISAR image in the target
+        % reference frame
+        fprintf('   Back-projection.\n')
+        [rx_signal, output_struct] = backprojection(...
+            signal, ...
+            rx_signal, ...
+            output_struct.ranges, ...
+            output_struct.range_array, ...
+            target, ... % assumes height is constant
+            yaw, ...
+            output_struct.target_positions, ...
+            output_struct);
+
+    end
+
     %% Plot results
     fprintf('Simulation complete: %4.2f seconds\n', toc(simStart))
     fprintf('Plotting results.\n')

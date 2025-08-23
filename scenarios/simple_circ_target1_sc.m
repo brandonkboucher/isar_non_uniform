@@ -41,10 +41,14 @@ classdef simple_circ_target1_sc < handle
             
             % set straight line velocity towards the radar
             obj.target.yawing_rate = pi; 
+            obj.print_angular_extent(T);
 
         end
         
-        
+        function print_angular_extent(obj,T)
+            angular_extent = rad2deg(obj.target.yawing_rate * T);
+            fprintf('Angular extent: %4.2f degrees \n', angular_extent)
+        end
     end
 end
 
