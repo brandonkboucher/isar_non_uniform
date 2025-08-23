@@ -5,7 +5,7 @@ function [rx_signal_bp, output_struct] = ...
         ranges, ...
         range_array, ...
         target, ...
-        roll, ...
+        yaw, ...
         target_positions, ...
         output_struct)
 
@@ -27,12 +27,18 @@ function [rx_signal_bp, output_struct] = ...
 
     % define the rotational matrix that serves to rotate the
     % imaging plane with the target
-    R_roll = [cos(roll), zeros(size(roll,1),1), sin(roll);
-     zeros(size(roll,1),1),ones(size(roll,1),1), zeros(size(roll,1),1);
-    -sin(roll), zeros(size(roll,1),1), cos(roll)];
+
+    R_yaw = ...
+        [cos(yaw), -sin(yaw), zeros(size(yaw,1),1); ...
+         sin(yaw), cos(yaw), zeros(size(yaw,1),1); ...
+         zeros(size(yaw,1),1), zeros(size(yaw,1),1), ones(size(yaw,1),1)];
+
+    % R_yaw = [cos(yaw), zeros(size(yaw,1),1), sin(yaw);
+    %  zeros(size(yaw,1),1),ones(size(yaw,1),1), zeros(size(yaw,1),1);
+    % -sin(yaw), zeros(size(yaw,1),1), cos(yaw)];
 
     % reshape to dimensions [nPulses x 3 x 3]
-    R_roll = reshape(R_roll, [size(roll,1),3,3]);
+    R_yaw = reshape(R_yaw, [size(yaw,1),3,3]);
 
     % define the image dimensions using the range and
     % cross-range resolution and the extent of the
@@ -74,7 +80,7 @@ function [rx_signal_bp, output_struct] = ...
 
             % extract the pixel location relative to the
             % center of the target
-            pixel_location = [X(iy,ix), Y(iy,ix), Z];
+            pixel_location = [x_array(ix), y_array(iy), Z];
 
             % initialize the image value as zero
             image_value = 0;
@@ -84,7 +90,7 @@ function [rx_signal_bp, output_struct] = ...
 
                 % calculate the location of the pixel
                 % relative to the radar
-                R = squeeze(R_roll(ipulse,:,:));
+                R = squeeze(R_yaw(ipulse,:,:));
                 pixel_location_radar = ...
                     pixel_location * R ...
                     + target_positions(ipulse,:);
@@ -109,14 +115,9 @@ function [rx_signal_bp, output_struct] = ...
         end
     end
 
-    f = figure;
-    imagesc(x_array, y_array, abs(rx_signal_bp))
-    title('Backprojection image', 'FontSize', 24)
-    xlabel('x (cross-range)', 'FontSize', 16)
-    ylabel('y (range)', 'FontSize', 16)
-    axis square
-    set(gcf, 'Position', get(0, 'Screensize'));
-    saveas(f, 'plots/backprojection.png')
+    output_struct.rx_bp = rx_signal_bp;
+    output_struct.x_bp = x_array;
+    output_struct.y_bp = y_array;
 
 end
 

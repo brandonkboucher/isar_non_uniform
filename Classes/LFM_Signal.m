@@ -16,6 +16,7 @@ classdef LFM_Signal
         t_m
         t_chirp
         range_array
+        doppler_array
 
         cross_range_resolution
         range_resolution
@@ -65,7 +66,8 @@ classdef LFM_Signal
             % define the chirp time array
             obj.t_chirp = (0:obj.dt_fast_time:obj.Tp - (1/obj.fs))';
             obj.range_array = obj.t_hat .* const.c / 2;
-            
+            obj.doppler_array = linspace(-obj.prf/2, obj.prf/2, size(obj.t_m,1))';
+
             % calculate the range resolution
             obj.range_resolution = const.c / (2 * obj.B);
             
@@ -74,9 +76,13 @@ classdef LFM_Signal
             obj.num_range_bins = size(obj.t_hat,1);
             obj.num_chirp_bins = size(obj.t_chirp, 1);
 
+            % apply a hamming window to the transmitted
+            % signal to mitigate side lobes
+            hamming_window = hamming(size(obj.t_chirp,1));
+
             rect_tx = abs(obj.t_chirp/obj.Tp) <= 1/2;
-            obj.tx_signal = ...
-                rect_tx .* exp(1j * pi * (mu * obj.t_chirp.^2)); % baseband
+            obj.tx_signal = ... 
+                hamming_window .* rect_tx .* exp(1j * pi * (mu * obj.t_chirp.^2)); % baseband
             % tx_signal = exp( 2 * pi * -1j * fc * t_hat); % continuous wave
 
         end

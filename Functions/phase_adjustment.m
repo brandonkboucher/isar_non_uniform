@@ -19,12 +19,17 @@ function [rx_autofocused,output_struct] = phase_adjustment(...
     % AI to help for now. If I can't get this to work then I'll
     % try implementing the phase gradient algorithm
     
-    % find the index of the most dominant scatterer along the
-    % range axis
-    [~, dominant_idx] = maxk(max(abs(rx_signal_aligned), [], 1), K);
+    % find the across all pulses the max absolute of the
+    % signal for each range bin
+    range_bins_max = max(abs(rx_signal_aligned), [], 1);
     
-    % extract the phases of the most dominant scatter across
-    % pulses
+    % find the K range bins with the max absolute of the
+    % received signal. You are finding across all pulses the
+    % maximum received signal for K range bins.
+    [~, dominant_idx] = maxk(range_bins_max, K);
+    dominant_ranges = output_struct.range_array(dominant_idx);
+
+    % extract the phases of the most dominant r
     phases = angle(rx_signal_aligned(:,dominant_idx));
     
     % apply the phase correction over the range bins

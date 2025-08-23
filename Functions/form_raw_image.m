@@ -10,14 +10,15 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
     % initialize received signal matrix
     % [number of range cells x number of cross range cells]
     rx_signal = zeros(signal.num_pulses, signal.num_range_bins);
-    R0 = zeros(target.num_scatters,1);
+    R0 = zeros(target.num_scatterers,1);
     
     % output vectors
-    scatterer_positions = zeros(signal.num_pulses, size(target.position, 2), target.num_scatters);
-    los_velocities      = zeros(signal.num_pulses, target.num_scatters);
+    scatterer_positions = zeros(signal.num_pulses, target.num_scatterers, size(target.position, 2));
+    los_velocities      = zeros(signal.num_pulses, target.num_scatterers);
     target_positions    = zeros(signal.num_pulses, size(target.position, 2));
-    ranges              = zeros(signal.num_pulses, target.num_scatters);
-    
+    ranges              = zeros(signal.num_pulses, target.num_scatterers);
+    fds                 = zeros(signal.num_pulses, target.num_scatterers);
+    doppler_phases      = zeros(signal.num_pulses, target.num_scatterers);
     fprintf('Propagating simulation\n')
     
     % iterate through each pulse (column)
@@ -28,7 +29,7 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
         end
     
         % iterate through each target scatter
-        for ipt = 1:target.num_scatters
+        for ipt = 1:target.num_scatterers
     
             % calculate the range to the target center, we assuming
             % that the ground station is positioned at the origin
@@ -45,7 +46,7 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
             
             % calculate the los velocity
             los_velocities(ipulse, ipt) = ...
-                dot(target.velocity, los_vector);
+                dot(target.scatter_velocities(ipt,:), los_vector);
     
             % calculate the range resulting from a change in the
             % los velocity
@@ -60,8 +61,14 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
             % the Doppler frequency is defined as (2/lambda)*d
             % range / dt, which is the velocity in the radial
             % direction
-            fd = 2 * signal.fc * los_velocities(ipulse, ipt) / const.c;
-        
+            fds(ipulse, ipt) = ...
+                2 * signal.fc * los_velocities(ipulse, ipt) / const.c;
+
+            % Then in your pulse loop:
+            doppler_phase = 2 * pi * fds(ipulse, ipt) * signal.dt_slow;
+            doppler_phases(ipulse, ipt) = doppler_phase;
+            % doppler_phase = exp(1j * cumulative_doppler_freq);
+
             % calculate the time delay
             tau = 2 * range / const.c;
     
@@ -71,10 +78,10 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
     
             % ensure Doppler shift begins where the target
             % returns a signal
-            t_echo = (0:num_chirp_bins-1)' * signal.dt_fast_time + tau;
+            % t_echo = (0:num_chirp_bins-1)' * signal.dt_fast_time + tau;
     
             % Doppler correction term
-            tx_doppler = exp(1j * 2 * pi * fd * t_echo);
+            % tx_doppler = exp(1j * 2 * pi * fd * t_echo);
     
             % assume that only the target scattering points
             % reflect the signal and for now assume the
@@ -97,35 +104,19 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
                 % motion
                 echo(delay_idx : delay_idx + num_chirp_bins - 1) = ...
                     echo(delay_idx : delay_idx + num_chirp_bins - 1) ...    
-                    + reflectivity * signal.tx_signal .* tx_doppler;
+                    + reflectivity * signal.tx_signal .* exp(1j * doppler_phase);
             else
                 warning('Echo extends beyond fast time window.')
             end
             
             rx_signal(ipulse, :) = rx_signal(ipulse, :) + echo.';
     
-            % model the received LFM signal shifted by the delay
-            % [3]
-            % rect = abs((t_hat - tau)/Tp) <= 1/2; 
-    
-            % the received signal originating from scatterer
-            % rx_signal_scatterer = ...
-            %     rect .*exp(pi * 1j * ...
-            %     ( mu .* (t_hat - tau).^2 )); % baseband
-    
-            % continuous wave
-            % rx_signal_scatterer = ...
-            %     exp( 2 * pi * -1j * fc * (t_hat - tau)); % continuous wave
-    
-            % sum for total received signal
-            % rx_signal(ipulse, :) = ...
-            %     rx_signal(ipulse, :) + rx_signal_scatterer';
-    
             % save target position data
             scatterer_positions(ipulse, ipt, :) = ...
                 target.scatter_positions(ipt, :);
+           
             target_positions(ipulse, :) = ...
-                target.position;
+                    target.position;
             
         end
         
@@ -140,5 +131,34 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
     output_struct.scatterer_positions = scatterer_positions;
     output_struct.target_positions = target_positions;
 
+    if target.num_scatterers == 3
+        figure
+        subplot(1,3,1)
+        plot(los_velocities(:,1), 'DisplayName', 'Scatterer 1')
+        hold on
+        plot(los_velocities(:,2), 'DisplayName', 'Scatterer 2')
+        plot(los_velocities(:,3), 'DisplayName', 'Scatterer 3')
+        title('LOS Velocity')
+        xlabel('Pulses')
+        legend
+    
+        subplot(1,3,2)
+        plot(ranges(:,1), 'DisplayName', 'Scatterer 1')
+        hold on
+        plot(ranges(:,2), 'DisplayName', 'Scatterer 2')
+        plot(ranges(:,3), 'DisplayName', 'Scatterer 3')
+        title('Ranges')
+        xlabel('Pulses')
+        legend
+    
+        subplot(1,3,3)
+        plot(doppler_phases(:,1), 'DisplayName', 'Scatterer 1')
+        hold on
+        plot(doppler_phases(:,2), 'DisplayName', 'Scatterer 2')
+        plot(doppler_phases(:,3),'DisplayName', 'Scatterer 3')
+        title('Doppler Frequency')
+        xlabel('Pulses')
+        legend
+        end
 end
 

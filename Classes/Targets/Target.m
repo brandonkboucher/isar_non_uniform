@@ -21,8 +21,9 @@ classdef Target < handle
 
         % define the number of scatters and the position of
         % each scatter
-        num_scatters = 3;
+        num_scatterers = 3;
         scatter_positions
+        scatter_velocities
         scatter_configuration
         scatter_relative_positions
 
@@ -31,7 +32,7 @@ classdef Target < handle
     
     methods
 
-        function obj = Target(dt, initial_position, num_scatters)
+        function obj = Target(dt, initial_position, num_scatterers)
             
             % the previous basic target model allowed for
             % the propagation of a target with three
@@ -43,7 +44,7 @@ classdef Target < handle
 
             obj.dt = dt;
             obj.position = initial_position;
-            obj.num_scatters = num_scatters;
+            obj.num_scatterers = num_scatterers;
 
             % currently the target configuration has three
             % scatters that are initialized as:
@@ -123,6 +124,8 @@ classdef Target < handle
             % propagate target velocity
             obj.velocity = obj.velocity ...
                 + obj.acceleration * obj.dt; 
+            obj.scatter_velocities = ...
+                repmat(obj.velocity, obj.num_scatterers, 1);
 
             % propagate target position
             obj.position = obj.position ...

@@ -8,8 +8,9 @@ classdef plotting < handle
         bool_plot_all = false
 
         bool_plot_range = false
-        bool_plot_target_trajectory = false
-        bool_video_target_trajectory = false
+        bool_plot_target_trajectory3D = false
+        bool_plot_target_trajectory2D   = false
+        bool_video_target_trajectory3D = false
         bool_plot_target = false
 
         bool_plot_raw_isar = false
@@ -17,13 +18,16 @@ classdef plotting < handle
         bool_plot_range_tracking = false
         bool_plot_autofocus = false
         bool_plot_rd = false
+        bool_plot_bp = false
 
         range_array
+        doppler_array
 
-        title_font_size = 24;
-        label_font_size = 16;
+        title_font_size = 36;
+        label_font_size = 24;
+        axis_font_size = 20;
 
-        plot_folder = ''
+        plot_folder = 'plots/'
 
     end
     
@@ -36,15 +40,15 @@ classdef plotting < handle
         function plot(obj, output_struct, varargin)
 
             if obj.bool_plot_range ...
-                || obj.bool_plot_target_trajectory ...
-                || obj.bool_video_target_trajectory ...
+                || obj.bool_plot_target_trajectory3D ...
+                || obj.bool_video_target_trajectory3D ...
                 || obj.bool_plot_raw_isar ...
                 || obj.bool_plot_range_compressed ...
                 || obj.bool_plot_range_tracking ...
                 || obj.bool_plot_autofocus ...
                 || obj.bool_plot_rd ...
                 || obj.bool_plot_target ...
-                || obj.bool_plot_all
+                || obj.bool_plot_target_trajectory2D
 
                 delete plots/*.png
             end
@@ -58,17 +62,27 @@ classdef plotting < handle
             if isfield(output_struct, 'range_array')
                 obj.range_array = output_struct.range_array;
             end
+            obj.doppler_array = output_struct.signal.doppler_array;
 
-            if (obj.bool_plot_target_trajectory || obj.bool_plot_all) ...
-                    && isfield(output_struct, 'scatterer_positions')
-                obj.plot_trajectory(output_struct.scatterer_positions)
+
+            if (obj.bool_plot_target_trajectory3D ) ...
+                    && isfield(output_struct, 'scatterer_positions') ...
+                    && ~isa(output_struct.target, 'Target_Simple')
+                obj.plot_trajectory3D(output_struct.scatterer_positions)
             end
 
-            if (obj.bool_video_target_trajectory)...
+            if (obj.bool_plot_target_trajectory2D ) ...
+                    && isfield(output_struct, 'scatterer_positions') ...
+                    && ~isa(output_struct.target, 'Target_Simple')
+                obj.plot_trajectory2D(output_struct.scatterer_positions)
+            end
+
+            if (obj.bool_video_target_trajectory3D)...
                 && isfield(output_struct, 'scatterer_positions') ...
                 && isfield(output_struct, 't_m') ...
                 && isfield(output_struct, 'ranges') ...
                 && isfield(output_struct, 'target_positions') ...
+                && ~isa(output_struct.target, 'Target_Simple') ...
                 && ~obj.visible
                 obj.video_trajectory(...
                     output_struct.scatterer_positions, ...
@@ -77,14 +91,14 @@ classdef plotting < handle
                     output_struct.target_positions)
             end
 
-            if (obj.bool_plot_range || obj.bool_plot_all) ...
+            if (obj.bool_plot_range ) ...
                     && isfield(output_struct, 'ranges') ...
                     && isfield(output_struct, 't_m')
                 obj.plot_range(output_struct.ranges, ...
                     output_struct.t_m)
             end
 
-            if (obj.bool_plot_raw_isar || obj.bool_plot_all) ...
+            if (obj.bool_plot_raw_isar) ...
                     && isfield(output_struct, 'rx_signal') ...
                     && isfield(output_struct, 'range_array') ...
                     && isfield(output_struct, 'ranges')
@@ -93,33 +107,77 @@ classdef plotting < handle
                     output_struct.ranges)
             end
 
-            if (obj.bool_plot_range_compressed || obj.bool_plot_all) ...
+            if (obj.bool_plot_range_compressed) ...
                     && isfield(output_struct, 'rx_signal_range_compressed')
                 obj.plot_range_compressed(output_struct.rx_signal_range_compressed)
             end
 
-            if (obj.bool_plot_range_tracking || obj.bool_plot_all) ...
+            if (obj.bool_plot_range_tracking) ...
                     && isfield(output_struct, 'rx_signal_aligned')
                 obj.plot_range_tracking(output_struct.rx_signal_aligned)
             end
 
-            if (obj.bool_plot_autofocus || obj.bool_plot_all) ...
+            if (obj.bool_plot_autofocus) ...
                     && isfield(output_struct, 'rx_autofocused')
                 obj.plot_autofocus(output_struct.rx_autofocused)
             end
 
-            if (obj.bool_plot_rd || obj.bool_plot_all) ...
+            if (obj.bool_plot_rd ) ...
                     && isfield(output_struct, 'rx_signal_rd')
                 obj.plot_rd(output_struct.rx_signal_rd)
             end
 
-            if (obj.bool_plot_target || obj.bool_plot_all) ...
+            if (obj.bool_plot_target) ...
                     && isfield(output_struct, 'ranges') ...
                     && isfield(output_struct, 'target')
                 obj.plot_target(output_struct.ranges, ...
                     output_struct.target)
             end
 
+            if (obj.bool_plot_bp) ...
+                    && isfield(output_struct, 'rx_bp') ...
+                    && isfield(output_struct, 'x_bp') ...
+                    && isfield(output_struct, 'y_bp')
+                obj.plot_bp(output_struct.rx_bp, ...
+                    output_struct.x_bp, ...
+                    output_struct.y_bp)
+
+            end
+
+        end
+
+        function set.bool_plot_all(obj, bool_plot_all)
+            if bool_plot_all
+                obj.bool_plot_autofocus = true;
+                obj.bool_plot_range = true;
+                obj.bool_plot_range_compressed = true;
+                obj.bool_plot_range_tracking = true;
+                obj.bool_plot_raw_isar = true;
+                obj.bool_plot_target = true;
+                obj.bool_plot_target_trajectory3D = true;
+                obj.bool_plot_target_trajectory2D = true;
+                obj.bool_video_target_trajectory3D = true;
+                obj.bool_plot_rd = true;
+                obj.bool_plot_bp = true;
+            end
+        end
+
+        function plot_bp(obj, rx_bp, x_bp, y_bp)
+            if obj.visible
+                figure
+            else
+                f = figure('Visible','off');
+            end
+            imagesc(x_bp, y_bp, abs(rx_bp))
+            title('Backprojection image', 'FontSize', 24)
+            xlabel('x (cross-range)', 'FontSize', 16)
+            ylabel('y (range)', 'FontSize', 16)
+            axis square
+            
+            if ~obj.visible
+                set(gcf, 'Position', get(0, 'Screensize'));
+                saveas(f, [obj.plot_folder, 'bp.png'])
+            end
         end
 
         function plot_rd(obj, rx_signal_rd)
@@ -134,27 +192,38 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            imagesc(obj.range_array, 1:size(rx_signal_rd, 1), abs(rx_signal_rd))
+            imagesc(obj.range_array, obj.doppler_array, abs(rx_signal_rd))
             title('Range-Doppler ISAR image', 'FontSize', obj.title_font_size)
             xlabel('Range [m]', 'FontSize', obj.label_font_size)
             ylabel('Doppler bins', 'FontSize',obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
             subplot(1,2,2)
-            semilogy(abs(rx_signal_rd(:, max_col)))
-            title('Doppler frequency for range with dominant scatterer', 'FontSize', obj.title_font_size)
+            semilogy(obj.range_array, abs(rx_signal_rd(max_row, :)))
+            title('Range profile for dominant scatterer', 'FontSize', obj.title_font_size)
             ylabel('Log scale amplitude', 'FontSize', obj.label_font_size)
-            xlabel('Doppler bins', 'FontSize', obj.label_font_size)
+            xlabel('Range [m]', 'FontSize', obj.label_font_size)
             grid on
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
-            buffers = [25,10,5,0];
+            if ~obj.visible
+                set(gcf, 'Position', get(0, 'Screensize'));
+                saveas(f, [obj.plot_folder, 'rd1.png'])
+            end
+
+            buffers = [25, 10, 5];
             for ibuffer = 1:size(buffers, 2)
                 
                 buffer = buffers(ibuffer);
                 row_idx = max_row-buffer:max_row+buffer;
                 col_idx = max_col-buffer:max_col+buffer;
+                
+                row_idx = row_idx(row_idx > 0 & row_idx < size(rx_signal_rd, 1));
+                col_idx = col_idx(col_idx > 0);
+                
                 
                 if col_idx(end) < size(obj.range_array,1)
                     break
@@ -166,13 +235,25 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            imagesc(obj.range_array(col_idx), row_idx, ...
+            subplot(1,2,1)
+            imagesc(obj.range_array(col_idx), obj.doppler_array(row_idx), ...
                 abs(rx_signal_rd(row_idx, col_idx)))
             title('Range-Doppler ISAR image - Zoomed near dominant scatterer','FontSize', obj.title_font_size)
             xlabel('Range [m]', 'FontSize', obj.label_font_size)
-            ylabel('Doppler bins', 'FontSize', obj.label_font_size)
+            ylabel('Doppler [Hz]', 'FontSize', obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
+            
+            subplot(1,2,2)
+            semilogy(obj.range_array, abs(rx_signal_rd(max_row, :)))
+            title('Range profile for dominant scatterer', 'FontSize', obj.title_font_size)
+            ylabel('Log scale amplitude', 'FontSize', obj.label_font_size)
+            xlabel('Range [m]', 'FontSize', obj.label_font_size)
+            grid on
+            axis square
+            set(gca,'FontSize',obj.axis_font_size)
+            
 
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
@@ -195,6 +276,7 @@ classdef plotting < handle
             ylabel('pulse index', 'FontSize', obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
             % subplot(1,2,2)
             % imagesc(obj.range_array, 1:size(rx_autofocused, 1), real(rx_autofocused))
@@ -225,6 +307,7 @@ classdef plotting < handle
             ylabel('pulse index', 'FontSize', obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
             % subplot(1,2,2)
             % imagesc(obj.range_array, 1:size(rx_signal_aligned, 1),real(rx_signal_aligned))
@@ -248,22 +331,26 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            % subplot(1,2,1)
+            subplot(1,2,1)
             imagesc(obj.range_array, 1:size(rx_signal_range_compressed, 1), abs(rx_signal_range_compressed))
             title('Absolute value range compressed ISAR image', 'FontSize', obj.title_font_size)
             xlabel('range [m]', 'FontSize', obj.label_font_size)
             ylabel('pulse index', 'FontSize', obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
-            % subplot(1,2,2)
-            % imagesc(obj.range_array, 1:size(rx_signal_range_compressed, 1), real(rx_signal_range_compressed))
-            % title('Real Range compressed ISAR image')
-            % xlabel('range [m]')
-            % ylabel('pulse index')
-            % colorbar
-            % axis square
-
+            pulse_idx = round(size(rx_signal_range_compressed,1)/2);
+            % pulse_idx = 1400;
+            subplot(1,2,2)
+            plot(obj.range_array, abs(rx_signal_range_compressed(pulse_idx, :)))
+            title(['Range profile for a singular range compressed pulse (' num2str(pulse_idx), ')'])
+            xlabel('range [m]')
+            ylabel('Signal')
+            colorbar
+            axis square
+            set(gca,'FontSize',obj.axis_font_size)
+            
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'range_compression.png'])
@@ -287,12 +374,13 @@ classdef plotting < handle
             % axis square
             
             % subplot(1,2,1)
-            imagesc(range_array, 1:size(rx_signal, 1), real(rx_signal))
-            title('Real value of received signal - raw ISAR data', 'FontSize', obj.title_font_size)
+            imagesc(range_array, 1:size(rx_signal, 1), abs(rx_signal))
+            title('Absolute value of received signal - raw ISAR data', 'FontSize', obj.title_font_size)
             xlabel('range [m]', 'FontSize', obj.label_font_size)
             ylabel('pulse index', 'FontSize', obj.label_font_size)
             colorbar
             axis square
+            set(gca,'FontSize',obj.axis_font_size)
             
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
@@ -313,15 +401,15 @@ classdef plotting < handle
             % ylabel('Amplitude')
 
             % subplot(1,2,2)
-            plot(range_array, real(rx_signal(round(size(ranges,1)/2), :)))
+            plot(range_array, abs(rx_signal(round(size(ranges,1)/2), :)))
             hold on
             xline(ranges(round(size(ranges,1)/2)), 'Color', 'r', 'LineWidth', 2, 'LineStyle', '--')
-            title('Real value of received signal for a singular pulse - raw ISAR data', 'FontSize', obj.title_font_size)
+            title('Absolute value of received signal for a singular pulse - raw ISAR data', 'FontSize', obj.title_font_size)
             xlabel('range [m]', 'FontSize', obj.label_font_size)
             ylabel('Amplitude', 'FontSize', obj.label_font_size)
             axis square
-
-
+            set(gca,'FontSize',obj.axis_font_size)
+            
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'raw_data2.png'])
@@ -332,7 +420,7 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            s = surf(real(rx_signal));
+            s = surf(abs(rx_signal));
             s.EdgeColor = 'none';
             xlabel('range bins')
             ylabel('pulses')
@@ -356,7 +444,8 @@ classdef plotting < handle
             xlabel('Slow time')
             ylabel('Range')
             axis square
-
+            set(gca,'FontSize',obj.axis_font_size)
+            
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'range.png'])
@@ -386,7 +475,8 @@ classdef plotting < handle
             ylim([min(target_config(:,2))-buffer, max(target_config(:,2))+buffer])
             grid on
             axis square
-
+            set(gca,'FontSize',obj.axis_font_size)
+            
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'target.png'])
@@ -513,7 +603,7 @@ classdef plotting < handle
 
         end
 
-        function plot_trajectory(obj, scatterer_positions)
+        function plot_trajectory3D(obj, scatterer_positions)
             
             xmin = min([scatterer_positions(:,1); 0]);
             ymin = min([scatterer_positions(:,2); 0]);
@@ -546,13 +636,57 @@ classdef plotting < handle
             los_z = linspace(0, scatterer_positions(ipt,3), 20);
             h = plot3(los_x, los_y, los_z, 'Color', 'r', 'DisplayName', 'LOS');
             legend('Location','northeast')
-
+            set(gca,'FontSize',obj.axis_font_size)
+            
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
-                saveas(f, [obj.plot_folder, 'trajectory.png'])
+                saveas(f, [obj.plot_folder, 'trajectory3d.png'])
             end
                 
         end
+
+        function plot_trajectory2D(obj, scatterer_positions)
+            
+            xmin = min([scatterer_positions(:,:,1)], [], "all");
+            ymin = min([scatterer_positions(:,:,2)], [], "all");
+
+            if obj.visible
+                figure
+            else
+                f = figure('Visible','off');
+            end
+            
+            for ipt = 1:size(scatterer_positions, 2)
+
+                plot( ...
+                    scatterer_positions(:,ipt,1), ...
+                    scatterer_positions(:,ipt,2), ...
+                    'DisplayName', 'Target Trajectory', 'Marker','+', 'LineStyle','none')
+                
+                hold on
+    
+                
+            end
+
+            xlabel('X')
+            ylabel('Y')
+            xlim([xmin, max(scatterer_positions(:,:,1),[], "all")])
+            ylim([ymin, max(scatterer_positions(:,:,2),[], "all")])
+            % ipt = 1;
+            % 
+            % los_x = linspace(0, scatterer_positions(ipt,1), 20);
+            % los_y = linspace(0, scatterer_positions(ipt,2), 20);
+            % h = plot(los_x, los_y, 'Color', 'r', 'DisplayName', 'LOS');
+            % legend('Location','northeast')
+            % set(gca,'FontSize',obj.axis_font_size)
+            
+            if ~obj.visible
+                set(gcf, 'Position', get(0, 'Screensize'));
+                saveas(f, [obj.plot_folder, 'trajectory2d.png'])
+            end
+                
+        end
+
     end
 end
 

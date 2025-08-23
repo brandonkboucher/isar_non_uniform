@@ -1,58 +1,76 @@
 
 
+% To do:
+% 1. add Hamming window prior to RD to mitigate sidelobs
+% 2. implement target super class
+
+% Okay so the current issue with the ISAR imager for targets
+% on the ground rotating is the selected reference range 
+% profile for the range tracking algorithm is a poor 
+% selection. The three scatterers are not well
+% differentiated and there are a couple of artifacts. I
+% think I need a more robust range tracking algorithm as
+% well as motion compensation algorithm. I am also still not
+% convinced that the cross range resolution of my target
+% relates to the rotation extent of the target. To
+% summarize, 
+% 1. Range tracking: select a better reference range profile
+% 2. Better motion compensation
+% 3. Better test the relationship between the cross-range
+% resolution of the target and the angular extent of the
+% target.
+
+% For right now, I can test the relationship between the
+% cross-range resolution and the angular extent by
+% simplifying the target definition to one target. I am
+% fairly convinced the issue with the RD image formation is
+% the phase alignment. The Doppler phases should be skewed
+% with each pulse then after applying phase alignment, the
+% Doppler frequency should be constant. There's a simple
+% case to test whether the RD image formulation is working -
+% constant LOS velocity should lead to a constant Doppler
+% phase and a constant Doppler phase should give a clear
+% point in the RD image. 
+
+% I need to try rotating the targets at different
+% frequencies which should equate to different Doppler
+% frequencies, or at least more pronounces Doppler frequency
+% differences.
+
+% I do see cross range resolution improvement when
+% increasing my simulation duration (dwell time) from 0.1
+% seconds (corresponding to an angular extent of 18 deg) to
+% 0.5 seconds (corresponding to an angular extent of 90
+% deg). The cross-range resolution improves from 20 Hz to 10
+% Hz; however, I am still skepitical of the general
+% dependency on my ISAR imager's cross-range resolution and
+% the angular extent of the target.
+
+% 
+
 % instantiate plotting
 p = plotting();
-p.visible                       = false;
-p.bool_plot_all                 = true;
-p.bool_video_target_trajectory  = false;
-
-% instantiate constants
-const = Constants;
-
-%% Define the signal model
-
-% initialize radar parameters and LFM signal model
-fc  = 10 * const.GHz2Hz; % [Hz] center frequency - X-band
-B   = 149.9 * const.MHz2Hz; % [Hz] bandwidth
-prf = 1 * const.kHz2Hz; % [Hz] pulse repetition frequency
-fs  = 300 * const.MHz2Hz; % [Hz] sampling frequency
-Tp  = 5 * const.us2s; % [s] pulse width
-
-% in order to pad the fast time array, a rough guess at the
-% maximum range must be set
-max_range = 520;
+p.visible                        = true;
+p.bool_plot_all                  = true;
+p.bool_plot_autofocus            = false;
+% p.bool_plot_raw_isar             = false;
+% p.bool_plot_range_compressed     = true;
+% p.bool_plot_range_tracking       = true;
+p.bool_plot_target_trajectory3D  = false;
+p.bool_video_target_trajectory3D = false;
 
 % define the length of the simulation
-T = 2; % [s]
+T = 0.1; % [s]
 
-% define the LFM signal
-signal = LFM_Signal(fc, B, prf, fs, Tp, T, max_range);
-    
-
-%% Define the target model
-    
-% define the number of scattering points off of the target
-num_scatters = 3;
-
-% define the target's initial position
-target_position = [70.8, 117.5, 500];
-
-% intialize target
-target = Target(signal.dt_slow, target_position, num_scatters);
-
-% set straight line velocity towards the radar
-target.velocity = [0, -10, 0];
-target.p = pi/16; % [rad/s] rotate 360 degrees over the course of the simulation
-target.p_dot = pi/16; % [rad/s/s]
-
-
-%% Execute the imager
+% define the scenario
+% sc = simple_circ_target1_sc(T);
+sc = simple_target_sc(T);
 
 % execute the isar imager
-output_struct = isar_imager(signal, target);
+output_struct = isar_imager(sc.signal, sc.target);
 
-% plot
-% p.plot(output_struct);
+% plot the results
+p.plot(output_struct);
 
 
 
