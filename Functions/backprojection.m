@@ -59,28 +59,27 @@ function [rx_signal_bp, output_struct] = ...
     y_array = linspace(-range_extent/2, ...
         range_extent/2, Ny)';
 
-    % formulate the mesh grid
-    [X,Y] = meshgrid(x_array, y_array);
-    Z = 0;
-
     % initialize final image
     rx_signal_bp = zeros(Nx, Ny);
 
     t = tic;
+    
+    % f = waitbar(0, 'Performing backprojection');
     % iterate through each pixel
-    for ix = 1:Nx
+    for ix = 1:Nx % cross range
         
         if mod(ix, round(Nx/100)) == 0
-            
-            fprintf('       %3.1f percent complete: %4.2f seconds\n', (ix*100/round(Nx)), toc(t))
+            % waitbar(ix/round(Nx),f,sprintf('Progress: %d %%', floor(ix/Nx*100)))
+            fprintf('       %3.1f percent complete: %4.2f seconds\n',...
+                (ix*100/round(Nx)), toc(t))
             t = tic;
         end
 
-        for iy = 1:Ny
+        for iy = 1:Ny % range
 
             % extract the pixel location relative to the
             % center of the target
-            pixel_location = [x_array(ix), y_array(iy), Z];
+            pixel_location = [x_array(ix), y_array(iy), 0];
 
             % initialize the image value as zero
             image_value = 0;
@@ -92,25 +91,33 @@ function [rx_signal_bp, output_struct] = ...
                 % relative to the radar
                 R = squeeze(R_yaw(ipulse,:,:));
                 pixel_location_radar = ...
-                    pixel_location * R ...
+                    (R * pixel_location')' ...
                     + target_positions(ipulse,:);
 
                 % find the range of the pixel to the radar
                 range = norm(pixel_location_radar);
 
                 % interpolate the range
-                echo = interp1(range_array, ...
+                echo = interp1(...
+                    range_array, ...
                     rx_signal(ipulse, :), ...
-                    range, 'linear', 0);
+                    range, ...
+                    'linear', ...
+                    0);
 
                 % Apply phase correction (match propagation delay)
-                phase = exp(-1j * 4 * pi * signal.fc * range / const.c);
+                phase = ...
+                    exp(1j * 4 * pi * signal.fc * range / const.c);
     
+                % calculation the pulse contribution
+                pulse_contribution = echo * phase;
+
                 % Sum contribution
-                image_value = image_value + echo * phase;
+                image_value = ...
+                    image_value + pulse_contribution;
 
             end
-            rx_signal_bp(ix,iy) = image_value;
+            rx_signal_bp(ix,iy) = image_value; % [cross range x range]
 
         end
     end

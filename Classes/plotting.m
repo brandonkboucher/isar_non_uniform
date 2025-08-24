@@ -182,13 +182,16 @@ classdef plotting < handle
             end
             imagesc(x_bp, y_bp, abs(rx_bp))
             title('Backprojection image', 'FontSize', 24)
-            xlabel('x (cross-range)', 'FontSize', 16)
-            ylabel('y (range)', 'FontSize', 16)
+            xlabel('x (range)', 'FontSize', 16)
+            ylabel('y (cross-range)', 'FontSize', 16)
             axis square
+            colorbar   
+            set(gca,'FontSize',obj.axis_font_size)
             
             if ~obj.visible
                 set(gcf, 'Position', get(0, 'Screensize'));
                 saveas(f, [obj.plot_folder, 'bp.png'])
+                saveas(f, [obj.plot_folder, 'bp.fig'])
             end
         end
 

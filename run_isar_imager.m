@@ -3,21 +3,20 @@
 
 % instantiate plotting
 p = plotting();
-p.visible                       = false;
+p.visible                       = true;
 p.bool_plot_range               = true;
-p.bool_plot_range_compressed    = true;
+p.bool_plot_bp                  = true;
 p.bool_plot_rd                  = true;
-p.bool_plot_target_trajectory2D = true;
 
 %% Simulation Parameters
 
 % simulation parameters
 sim_params = Simulation_Parameters();
 sim_params.translational_moco   = false;
-sim_params.range_doppler        = true;
+sim_params.backprojection       = true;
 
 % define the length of the simulation
-T = 0.5; % [s]
+T = 0.1; % [s]
 
 %% Target
 

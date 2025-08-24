@@ -2,6 +2,8 @@ function output_struct = isar_imager(signal,target, sim_params)
     
     %% Preprocssing
 
+    const = Constants();
+
     simStart = tic;
     
     % save data
@@ -24,6 +26,9 @@ function output_struct = isar_imager(signal,target, sim_params)
         if angular_extent > 2*pi; angular_extent = 2*pi; end
         signal.cross_range_resolution = ...
             const.c / (2 * angular_extent * signal.fc);
+    
+        % signal.cross_range_resolution = 1;
+        % yaw = zeros(signal.num_pulses,1);
     end
 
     %% Range Compression

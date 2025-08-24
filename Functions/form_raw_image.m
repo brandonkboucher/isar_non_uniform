@@ -69,6 +69,9 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
             doppler_phases(ipulse, ipt) = doppler_phase;
             % doppler_phase = exp(1j * cumulative_doppler_freq);
 
+            % apply carrier phase correction term
+            carrier_phase = 4 * pi * range / const.c;
+
             % calculate the time delay
             tau = 2 * range / const.c;
     
@@ -104,7 +107,8 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
                 % motion
                 echo(delay_idx : delay_idx + num_chirp_bins - 1) = ...
                     echo(delay_idx : delay_idx + num_chirp_bins - 1) ...    
-                    + reflectivity * signal.tx_signal .* exp(1j * doppler_phase);
+                    + reflectivity * signal.tx_signal ...
+                    .* exp(1j * doppler_phase) .* exp(-1j * carrier_phase);
             else
                 warning('Echo extends beyond fast time window.')
             end
@@ -130,6 +134,7 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
     output_struct.rx_signal = rx_signal;
     output_struct.scatterer_positions = scatterer_positions;
     output_struct.target_positions = target_positions;
+    output_struct.doppler_phases = doppler_phases;
 
     if target.num_scatterers == 3
         figure
