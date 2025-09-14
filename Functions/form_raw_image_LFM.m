@@ -1,4 +1,4 @@
-function [rx_signal, output_struct] = form_raw_image( signal, target, output_struct)
+function [rx_signal, output_struct] = form_raw_image_LFM( signal, target, output_struct)
     
     %% Raw ISAR data
     
@@ -136,34 +136,34 @@ function [rx_signal, output_struct] = form_raw_image( signal, target, output_str
     output_struct.target_positions = target_positions;
     output_struct.doppler_phases = doppler_phases;
 
-    if target.num_scatterers == 3
-        figure
-        subplot(1,3,1)
-        plot(los_velocities(:,1), 'DisplayName', 'Scatterer 1')
-        hold on
-        plot(los_velocities(:,2), 'DisplayName', 'Scatterer 2')
-        plot(los_velocities(:,3), 'DisplayName', 'Scatterer 3')
-        title('LOS Velocity')
-        xlabel('Pulses')
-        legend
-    
-        subplot(1,3,2)
-        plot(ranges(:,1), 'DisplayName', 'Scatterer 1')
-        hold on
-        plot(ranges(:,2), 'DisplayName', 'Scatterer 2')
-        plot(ranges(:,3), 'DisplayName', 'Scatterer 3')
-        title('Ranges')
-        xlabel('Pulses')
-        legend
-    
-        subplot(1,3,3)
-        plot(doppler_phases(:,1), 'DisplayName', 'Scatterer 1')
-        hold on
-        plot(doppler_phases(:,2), 'DisplayName', 'Scatterer 2')
-        plot(doppler_phases(:,3),'DisplayName', 'Scatterer 3')
-        title('Doppler Frequency')
-        xlabel('Pulses')
-        legend
-        end
+    % if target.num_scatterers == 3
+    %     figure
+    %     subplot(1,3,1)
+    %     plot(los_velocities(:,1), 'DisplayName', 'Scatterer 1')
+    %     hold on
+    %     plot(los_velocities(:,2), 'DisplayName', 'Scatterer 2')
+    %     plot(los_velocities(:,3), 'DisplayName', 'Scatterer 3')
+    %     title('LOS Velocity')
+    %     xlabel('Pulses')
+    %     legend
+    % 
+    %     subplot(1,3,2)
+    %     plot(ranges(:,1), 'DisplayName', 'Scatterer 1')
+    %     hold on
+    %     plot(ranges(:,2), 'DisplayName', 'Scatterer 2')
+    %     plot(ranges(:,3), 'DisplayName', 'Scatterer 3')
+    %     title('Ranges')
+    %     xlabel('Pulses')
+    %     legend
+    % 
+    %     subplot(1,3,3)
+    %     plot(doppler_phases(:,1), 'DisplayName', 'Scatterer 1')
+    %     hold on
+    %     plot(doppler_phases(:,2), 'DisplayName', 'Scatterer 2')
+    %     plot(doppler_phases(:,3),'DisplayName', 'Scatterer 3')
+    %     title('Doppler Frequency')
+    %     xlabel('Pulses')
+    %     legend
+    %     end
 end
 

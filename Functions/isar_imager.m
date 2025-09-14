@@ -9,7 +9,7 @@ function output_struct = isar_imager(signal,target, sim_params)
     % save data
     output_struct.signal = signal;
     output_struct.target = target;
-    output_struct.t_m = signal.t_m;
+    output_struct.t_slow = signal.t_slow;
 
     % check input simulation parameters
     if ~sim_params.range_doppler ...
@@ -17,26 +17,31 @@ function output_struct = isar_imager(signal,target, sim_params)
         error('Either Range-Doppler processing or Backprojection must be enabled.')
     end
 
-    if sim_params.backprojection
-        % calculate the angular extent over the course of the target
-        % flyout
-        yaw = target.yaw .* signal.t_m ...   
-            + (1/2) * target.yawing_rate .* signal.t_m .^ 2;
-        angular_extent = yaw(end);
-        if angular_extent > 2*pi; angular_extent = 2*pi; end
-        signal.cross_range_resolution = ...
-            const.c / (2 * angular_extent * signal.fc);
-    
-        % signal.cross_range_resolution = 1;
-        % yaw = zeros(signal.num_pulses,1);
-    end
-
     %% Range Compression
     
-    % formulate the raw isar image
-    [rx_signal, output_struct] = ...
-        form_raw_image( signal, target, output_struct );
-    
+    if isa(signal, 'LFM_Signal')
+
+        % formulate the raw isar image using a transmitted
+        % LFM signal
+        [rx_signal, output_struct] = ...
+            form_raw_image_LFM( ...
+            signal, ...
+            target, ...
+            output_struct );
+        
+    elseif isa(signal, 'Basic_Signal')
+
+        % formulate the raw isar image using a basic signal
+        % model approximation
+        [rx_signal, output_struct] = ...
+            form_raw_image_basic( ...
+            signal, ...
+            target, ...
+            output_struct );
+    else
+        error('Signal model not set correctly.')
+    end
+
     fprintf('Performing post-processing.\n')
     
     if sim_params.range_compression
@@ -91,6 +96,20 @@ function output_struct = isar_imager(signal,target, sim_params)
     
     else
         
+        % calculate the angular extent of the taget, if
+        % greater than 360 degrees, set to 360 degrees
+        angular_extent = target.yaws(end);
+        if angular_extent > 2*pi; angular_extent = 2*pi; end
+        
+        % define the cross range resolution for the grid
+        signal.cross_range_resolution = ...
+            const.c / (2 * angular_extent * signal.fc);
+        output_struct.signal.cross_range_resolution =...
+            signal.cross_range_resolution;
+
+        % backprojection grid extent
+        grid_extent = [20, 20]; % [cross range, range]
+
         % perform backprojection to form ISAR image in the target
         % reference frame
         fprintf('   Back-projection.\n')
@@ -100,9 +119,15 @@ function output_struct = isar_imager(signal,target, sim_params)
             output_struct.ranges, ...
             output_struct.range_array, ...
             target, ... % assumes height is constant
-            yaw, ...
+            target.yaws, ...
             output_struct.target_positions, ...
-            output_struct);
+            output_struct, ...
+            grid_extent);
+
+        plot_bp_traj(...
+            grid_extent, ...
+            target.yaws, ...
+            output_struct)
 
     end
 

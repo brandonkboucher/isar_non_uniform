@@ -17,8 +17,12 @@ function [rx_signal_range_compressed,output_struct] = ...
     
     % adjust the range axis by the match filter's group delay
     range_array = signal.range_array ...
-        - (signal.Tp * const.c / 4);
-    output_struct.range_array = range_array;
+        - (signal.Tp * const.c / 2);
+    output_struct.range_array = signal.range_array;
+
+    delay = finddelay(rx_signal(1,:),h);
+    delay_m = delay * signal.dt_fast_time * (3e8) /2;
+    half_pulse = (signal.Tp * const.c / 2);
     
     % save data 
     output_struct.rx_signal_range_compressed = ...

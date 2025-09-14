@@ -7,7 +7,8 @@ function [rx_signal_bp, output_struct] = ...
         target, ...
         yaw, ...
         target_positions, ...
-        output_struct)
+        output_struct, ...
+        grid_extent)
 
     const = Constants();
 
@@ -27,15 +28,7 @@ function [rx_signal_bp, output_struct] = ...
 
     % define the rotational matrix that serves to rotate the
     % imaging plane with the target
-
-    R_yaw = ...
-        [cos(yaw), -sin(yaw), zeros(size(yaw,1),1); ...
-         sin(yaw), cos(yaw), zeros(size(yaw,1),1); ...
-         zeros(size(yaw,1),1), zeros(size(yaw,1),1), ones(size(yaw,1),1)];
-
-    % R_yaw = [cos(yaw), zeros(size(yaw,1),1), sin(yaw);
-    %  zeros(size(yaw,1),1),ones(size(yaw,1),1), zeros(size(yaw,1),1);
-    % -sin(yaw), zeros(size(yaw,1),1), cos(yaw)];
+    R_yaw = rotate_z(yaw);
 
     % reshape to dimensions [nPulses x 3 x 3]
     R_yaw = reshape(R_yaw, [size(yaw,1),3,3]);
@@ -43,21 +36,20 @@ function [rx_signal_bp, output_struct] = ...
     % define the image dimensions using the range and
     % cross-range resolution and the extent of the
     % dimensions, 
-    cross_range_extent = 100; % [m]
-    range_extent = 100; % [m]
+    cross_range_extent = grid_extent(1); % [m]
+    range_extent = grid_extent(2); % [m]
     
     % the output of the backprojection algorithm will be 
     % [Nx x Ny] where Nx is cross-range, Ny is range
-    Nx = round(cross_range_extent / signal.cross_range_resolution);
-    Ny = round(range_extent / signal.range_resolution);
+    Nx = round(cross_range_extent ...
+        / signal.cross_range_resolution);
+    Ny = round(range_extent ...
+        / signal.range_resolution);
 
     % calculate the x and y values that define the image and
     % the pixel locations relative to the radar
-    x_array = linspace(-cross_range_extent/2, ...
-        cross_range_extent/2, Nx)';
-    
-    y_array = linspace(-range_extent/2, ...
-        range_extent/2, Ny)';
+    x_array = (-floor(Nx/2):ceil(Nx/2)-1) * signal.cross_range_resolution;
+    y_array = (-floor(Ny/2):ceil(Ny/2)-1) * signal.range_resolution;
 
     % initialize final image
     rx_signal_bp = zeros(Nx, Ny);
@@ -84,6 +76,9 @@ function [rx_signal_bp, output_struct] = ...
             % initialize the image value as zero
             image_value = 0;
 
+            % add a hamming window to surpress sidelobes
+            window = hamming(signal.num_pulses);
+
             % iterate through each pulse
             for ipulse = 1:signal.num_pulses
 
@@ -102,15 +97,15 @@ function [rx_signal_bp, output_struct] = ...
                     range_array, ...
                     rx_signal(ipulse, :), ...
                     range, ...
-                    'linear', ...
-                    0);
+                    'pchip', 0);
 
                 % Apply phase correction (match propagation delay)
                 phase = ...
                     exp(1j * 4 * pi * signal.fc * range / const.c);
     
                 % calculation the pulse contribution
-                pulse_contribution = echo * phase;
+                pulse_contribution = ...
+                    window(ipulse) * echo * phase;
 
                 % Sum contribution
                 image_value = ...
@@ -121,6 +116,22 @@ function [rx_signal_bp, output_struct] = ...
 
         end
     end
+
+    % f = figure;
+    % subplot(1,2,1)
+    % imagesc(20*log10(abs(rx_signal_bp)))
+    % xlabel('range bins')
+    % ylabel('cross range bins')
+    % title('Backprojection results')
+    % colorbar
+    % 
+    % subplot(1,2,2)
+    % plot(y_array, 20*log10(abs(rx_signal_bp(10,:))))
+    % xlabel('range bins')
+    % ylabel('Signal (dB)')
+    % title('Range profile of 10th bin')
+    % set(gcf, 'Position', get(0, 'Screensize'));
+    % saveas(f, 'test.png')
 
     output_struct.rx_bp = rx_signal_bp;
     output_struct.x_bp = x_array;

@@ -1,0 +1,9 @@
+function R = rotate_z(yaw)
+
+    R = ...
+        [cos(yaw), -sin(yaw), zeros(size(yaw,1),1); ...
+         sin(yaw), cos(yaw), zeros(size(yaw,1),1); ...
+         zeros(size(yaw,1),1), zeros(size(yaw,1),1), ones(size(yaw,1),1)];
+
+end
+

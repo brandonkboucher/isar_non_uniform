@@ -1,6 +1,6 @@
 
 
-classdef Target_Circ_Single < handle
+classdef Target_L < handle
     %TARGET Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -22,11 +22,11 @@ classdef Target_Circ_Single < handle
 
         % define orientation
         yaw = 0; % [rad]
-        yaws = [0];
+        yaws = []; % [rad] array of yaws
 
         % define the number of scatters and the position of
         % each scatter
-        num_scatterers = 1;
+        num_scatterers = 3;
         scatter_positions
         scatter_velocities
         scatter_configuration
@@ -37,11 +37,10 @@ classdef Target_Circ_Single < handle
     
     methods
 
-        function obj = Target_Circ_Single(...
+        function obj = Target_L( ...
                 dt, ...
-                initial_position,...
-                num_scatterers, ...
-                radius)
+                initial_center_position, ...
+                yaw)
             
             % the previous basic target model allowed for
             % the propagation of a target with three
@@ -52,8 +51,7 @@ classdef Target_Circ_Single < handle
             % separate them entirely to minimize confusion
 
             obj.dt = dt;
-            obj.position = initial_position;
-            obj.num_scatterers = num_scatterers;
+            obj.position = initial_center_position;
 
             % currently the target configuration has three
             % scatters that are initialized as:
@@ -80,10 +78,21 @@ classdef Target_Circ_Single < handle
 
             % define the shape of the simulated aircraft
             % as a triangle relative to the center
-            obj.radius = radius;
+            obj.radius = [3, 7];
             
+            % set the initial yaw and define a rotation
+            % matrix
+            obj.yaw = yaw;
+            obj.yaws = [obj.yaws; obj.yaw];
+            R_yaw = ...
+            [cos(obj.yaw), -sin(obj.yaw), 0; ...
+             sin(obj.yaw), cos(obj.yaw), 0; ...
+             0, 0, 1];
+
             obj.scatter_configuration = ...
-                [0,obj.radius,0];                 % scatter 3
+                [0, 0, 0; ... % scatter 1
+                obj.radius(2), 0, 0; ... % scatter 2
+                0, obj.radius(1), 0];     % scatter 3
 
             % the scatterer's positions relative to the
             % initial scatterer configuration
@@ -92,7 +101,8 @@ classdef Target_Circ_Single < handle
 
             % transform to the radar's reference frame
             obj.scatter_positions = ...
-                obj.scatter_configuration + obj.position;
+                (R_yaw * obj.scatter_configuration')' ...
+                + obj.position;
 
         end
         
@@ -105,7 +115,10 @@ classdef Target_Circ_Single < handle
             obj.yaws = [obj.yaws; obj.yaw];
 
             % define a rotation matrix about the z-axis
-            rot_z = rotate_z(obj.yaw);
+            rot_z = ...
+            [cos(obj.yaw), -sin(obj.yaw),0; ... 
+            sin(obj.yaw), cos(obj.yaw), 0; ... 
+            0, 0, 1];
 
             % rotate the scatterers relative to the center
             % of the target
@@ -120,7 +133,6 @@ classdef Target_Circ_Single < handle
         end
 
         function set.yawing_rate(obj,yawing_rate)
-
             obj.yawing_rate = yawing_rate;
             obj.set_scattering_velocities();
            
@@ -134,6 +146,7 @@ classdef Target_Circ_Single < handle
                     [0,0,obj.yawing_rate]);
             end
         end
+
     end
 end
 

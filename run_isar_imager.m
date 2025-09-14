@@ -1,12 +1,12 @@
 
+close all
+
 %% Plotting
 
 % instantiate plotting
 p = plotting();
-p.visible                       = true;
-p.bool_plot_range               = true;
-p.bool_plot_bp                  = true;
-p.bool_plot_rd                  = true;
+p.visible                       = false;
+p.bool_plot_all                 = false;
 
 %% Simulation Parameters
 
@@ -14,14 +14,16 @@ p.bool_plot_rd                  = true;
 sim_params = Simulation_Parameters();
 sim_params.translational_moco   = false;
 sim_params.backprojection       = true;
+sim_params.range_doppler        = false;
 
 % define the length of the simulation
-T = 0.1; % [s]
+T = 1; % [s]
 
 %% Target
 
 % define the scenario
-sc = simple_circ_target1_sc(T);
+sc = tabletop_L_simple_sig_sc(T);
+%sc = simple_circ_target1_sc(T);
 
 %% Run Simulation
 

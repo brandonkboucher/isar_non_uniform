@@ -68,92 +68,134 @@ classdef plotting < handle
             if (obj.bool_plot_target_trajectory3D ) ...
                     && isfield(output_struct, 'scatterer_positions') ...
                     && ~isa(output_struct.target, 'Target_Simple')
+                try
                 obj.plot_trajectory3D(output_struct.scatterer_positions)
+                catch
+                    fprintf('   plot_trajectory3D failed.\n')
+                end
             end
-
             if (obj.bool_plot_target_trajectory2D ) ...
                     && isfield(output_struct, 'scatterer_positions') ...
                     && ~isa(output_struct.target, 'Target_Simple')
+                try
                 obj.plot_trajectory2D(output_struct.scatterer_positions)
+                catch
+                    fprintf('   plot_target_trajectory2D failed.\n')
+                end
             end
-
             if (obj.bool_video_target_trajectory3D)...
                 && isfield(output_struct, 'scatterer_positions') ...
-                && isfield(output_struct, 't_m') ...
+                && isfield(output_struct, 't_slow') ...
                 && isfield(output_struct, 'ranges') ...
                 && isfield(output_struct, 'target_positions') ...
                 && ~isa(output_struct.target, 'Target_Simple') ...
                 && ~obj.visible
+                try
                 obj.video_trajectory(...
                     output_struct.scatterer_positions, ...
-                    output_struct.t_m, ...
+                    output_struct.t_slow, ...
                     output_struct.ranges, ...
                     output_struct.target_positions)
+                catch
+                    fprintf('   video_trajectory failed.\n')
+                end
             end
-
             if (obj.bool_plot_range ) ...
                     && isfield(output_struct, 'ranges') ...
-                    && isfield(output_struct, 't_m')
+                    && isfield(output_struct, 't_slow')
+                try
                 obj.plot_range(output_struct.ranges, ...
-                    output_struct.t_m)
+                    output_struct.t_slow)
+                catch
+                    fprintf('   plot_range failed.\n')
+                end
             end
 
             if (obj.bool_plot_raw_isar) ...
                     && isfield(output_struct, 'rx_signal') ...
                     && isfield(output_struct, 'range_array') ...
                     && isfield(output_struct, 'ranges')
+                try
                 obj.plot_raw_isar(output_struct.rx_signal, ...
                     output_struct.range_array, ...
                     output_struct.ranges)
+                catch
+                    fprintf('   plot_raw_isar failed.\n')
+                end
             end
 
             if (obj.bool_plot_range_compressed) ...
                     && isfield(output_struct, 'rx_signal_range_compressed')
+                try
                 obj.plot_range_compressed(output_struct.rx_signal_range_compressed)
+                catch
+                fprintf('   plot_range_compressed failed.')
+                end
             end
 
             if (obj.bool_plot_range_tracking) ...
                     && isfield(output_struct, 'rx_signal_aligned')
+                try
                 obj.plot_range_tracking(output_struct.rx_signal_aligned)
+                catch
+                    fprintf('   plot_range_tracking failed.\n')
+                end
             end
 
             if (obj.bool_plot_autofocus) ...
                     && isfield(output_struct, 'rx_autofocused')
+                try
                 obj.plot_autofocus(output_struct.rx_autofocused)
+                catch
+                    fprintf('   plot_autofocus failed.\n')
+                end
             end
 
             if (obj.bool_plot_rd ) ...
                     && isfield(output_struct, 'rx_signal_rd')
+                try
                 obj.plot_rd(output_struct.rx_signal_rd)
+                catch
+                    fprintf('   plot_rd failed.\n')
+                end
             end
-
             if (obj.bool_plot_target) ...
                     && isfield(output_struct, 'ranges') ...
                     && isfield(output_struct, 'target')
+                try
                 obj.plot_target(output_struct.ranges, ...
                     output_struct.target)
+                catch
+                    fprintf('   plot_target failed.\n')
+                end
             end
 
             if (obj.bool_plot_bp) ...
                     && isfield(output_struct, 'rx_bp') ...
                     && isfield(output_struct, 'x_bp') ...
                     && isfield(output_struct, 'y_bp')
+                try
                 obj.plot_bp(output_struct.rx_bp, ...
                     output_struct.x_bp, ...
                     output_struct.y_bp)
-
+                catch
+                    fprintf('   plot_bp failed.\n')
+                end
             end
 
             if (obj.bool_plot_range ) ...
                     && isfield(output_struct, 'ranges') ...
-                    && isfield(output_struct, 't_m') ...
+                    && isfield(output_struct, 't_slow') ...
                     && isfield(output_struct, 'scatterer_positions') ...
                     && ~isa(output_struct.target, 'Target_Simple')
-                
+                try
                 obj.plot_ranges_and_trajectory(...
                     output_struct.ranges, ...
-                    output_struct.t_m, ...
+                    output_struct.t_slow, ...
                     output_struct.scatterer_positions)
+                catch
+                    fprintf('   plot_ranges_and_trajectory failed.\n')
+                end
             end
 
         end
@@ -168,7 +210,6 @@ classdef plotting < handle
                 obj.bool_plot_target = true;
                 obj.bool_plot_target_trajectory3D = true;
                 obj.bool_plot_target_trajectory2D = true;
-                obj.bool_video_target_trajectory3D = true;
                 obj.bool_plot_rd = true;
                 obj.bool_plot_bp = true;
             end
@@ -180,7 +221,8 @@ classdef plotting < handle
             else
                 f = figure('Visible','off');
             end
-            imagesc(x_bp, y_bp, abs(rx_bp.'))
+            % imagesc(x_bp, y_bp, abs(rx_bp.'))
+            imagesc(x_bp, y_bp, 20*log10(abs(rx_bp.') + eps));
             title('Backprojection image', 'FontSize', 24)
             xlabel('x (cross-range)', 'FontSize', 16)
             ylabel('y (range)', 'FontSize', 16)
@@ -358,10 +400,10 @@ classdef plotting < handle
             pulse_idx = round(size(rx_signal_range_compressed,1)/2);
             % pulse_idx = 1400;
             subplot(1,2,2)
-            plot(obj.range_array, abs(rx_signal_range_compressed(pulse_idx, :)))
+            plot(obj.range_array, log(abs(rx_signal_range_compressed(pulse_idx, :))))
             title(['Range profile for a singular range compressed pulse (' num2str(pulse_idx), ')'])
             xlabel('range [m]')
-            ylabel('Signal')
+            ylabel('Log of Signal')
             colorbar
             axis square
             set(gca,'FontSize',obj.axis_font_size)
@@ -447,14 +489,14 @@ classdef plotting < handle
 
         end
 
-        function plot_range(obj, ranges, t_m)
+        function plot_range(obj, ranges, t_slow)
 
             if obj.visible
                 figure
             else
                 f = figure('Visible','off');
             end
-            plot(t_m, ranges)
+            plot(t_slow, ranges)
             title('Target Range')
             xlabel('Slow time')
             ylabel('Range')
@@ -499,7 +541,7 @@ classdef plotting < handle
 
         end
 
-        function video_trajectory(obj, scatterer_positions, t_m, ranges, target_positions)
+        function video_trajectory(obj, scatterer_positions, t_slow, ranges, target_positions)
 
             % target positions dimensions:
             % [nRanges x nScatters x Positions]
@@ -530,7 +572,7 @@ classdef plotting < handle
             grid on
 
             subplot(1,2,2)
-            plot(t_m, ranges, 'LineWidth', 2)
+            plot(t_slow, ranges, 'LineWidth', 2)
             title('Target Range')
             xlabel('Slow time [s]')
             ylabel('Range [m]')
@@ -588,7 +630,7 @@ classdef plotting < handle
                 k = [];
                 for iscatter = 1:size(scatterer_positions, 2)
                     subplot(1,2,2)
-                    k = [k, plot(t_m(irange), ...
+                    k = [k, plot(t_slow(irange), ...
                         ranges(irange, iscatter), '*', 'Color', 'r', 'MarkerSize', 10, 'Marker','o')];
                 end
 
@@ -683,8 +725,8 @@ classdef plotting < handle
                 
             end
             
-            xlim([xmin, max(scatterer_positions(:,:,1),[], "all")])
-            ylim([ymin, max(scatterer_positions(:,:,2),[], "all")])
+            xlim([0, max(scatterer_positions(:,:,1),[], "all")])
+            ylim([0, max(scatterer_positions(:,:,2),[], "all")])
             
             title('Target Trajectory', 'FontSize', obj.title_font_size)
             xlabel('X [m]', 'FontSize', obj.label_font_size)
@@ -700,7 +742,7 @@ classdef plotting < handle
                 
         end
 
-        function plot_ranges_and_trajectory(obj, ranges, t_m, scatterer_positions)
+        function plot_ranges_and_trajectory(obj, ranges, t_slow, scatterer_positions)
 
 
             %% range
@@ -710,7 +752,7 @@ classdef plotting < handle
                 f = figure('Visible','off');
             end
             subplot(1,2,1)
-            plot(t_m, ranges, 'LineWidth', 2)
+            plot(t_slow, ranges, 'LineWidth', 2)
             title('Target Range')
             xlabel('Slow time')
             ylabel('Range')

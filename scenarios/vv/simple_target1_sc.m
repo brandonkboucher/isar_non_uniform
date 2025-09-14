@@ -19,14 +19,14 @@ classdef simple_target1_sc < handle
             num_scatterers = 1;
             
             % define the target's initial position
-            target_position = [0, 100, 0]; % center point of the target
+            target_position = [0, 1000, 0]; % center point of the target
             
             % initialize radar parameters and LFM signal model
             fc  = 10 * const.GHz2Hz; % [Hz] center frequency - X-band
             B   = 149.9 * const.MHz2Hz; % [Hz] bandwidth
             prf = 1 * const.kHz2Hz; % [Hz] pulse repetition frequency
             fs  = 300 * const.MHz2Hz; % [Hz] sampling frequency
-            Tp  = 5 * const.us2s; % [s] pulse width
+            Tp  = 10 * const.us2s; % [s] pulse width
             
             % in order to pad the fast time array, a rough guess at the
             % maximum range must be set
