@@ -37,13 +37,13 @@ num_pulses = round(T / dt_slow);
 num_range_bins = size(t_fast,1);
 
 t_tx = (-Tp/2 : dt_fast_time : Tp/2 - dt_fast_time)';
-tx_signal = sinc(B * t_tx);
+tx_signal = sinc(B * t_tx);% .* exp( -1j * 2 * pi * fc * t_tx);
 
 
 %% define the target scatterers
 
 % number of scatterers
-num_scatterers = 3;
+num_scatterers = 1;
 
 % define the shape of the simulated aircraft
 % as a triangle relative to the center
@@ -51,6 +51,8 @@ radius = [3, 7];
 
 % define the target's initial position
 target_center_position = [0, 1000, 0];
+
+% scatter_relative_positions = [7, 0, 0];
 
 scatter_relative_positions = ...
     [0, 0, 0; ... % scatter 1
@@ -125,18 +127,6 @@ for ipulse = 1:num_pulses
 end
 
 
-%% range compression
-
-% range compression via match filtering using the
-% transmitted signal pulse
-h = conj(flipud(tx_signal));
-rx_signal_range_compressed = zeros(size(rx_signal));
-for ipulse =1:num_pulses    
-    rx_signal_range_compressed(ipulse,:) = ...
-        conv(rx_signal(ipulse,:), h, "same");
-end
-
-
 %% backprojection
 
 % define the cross range resolution for the grid
@@ -167,18 +157,19 @@ t = tic;
 % formulate the mesh grid
 [X,Y] = meshgrid(x_array,y_array);
 
-% locate the pixel corresponding to scatterer 2's initial
-% position
-[trow, tcol] = find(...
-    scatter_relative_positions(2,1) == X ...
-    & scatter_relative_positions(2,2) == Y);
-
-% for debugging purposes calculate the difference between
-% the range of target 2 and the pixel initially containing 
-% target 2 (should be zero across every pulse if motion is 
-% compensated for)
-ranges_diff = zeros(num_pulses,1);
-pixel_locations2 = zeros(num_pulses,3);
+% debugging
+% % locate the pixel corresponding to scatterer 2's initial
+% % position
+% [trow, tcol] = find(...
+%     scatter_relative_positions(2,1) == X ...
+%     & scatter_relative_positions(2,2) == Y);
+% 
+% % for debugging purposes calculate the difference between
+% % the range of target 2 and the pixel initially containing 
+% % target 2 (should be zero across every pulse if motion is 
+% % compensated for)
+% ranges_diff = zeros(num_pulses,1);
+% pixel_locations2 = zeros(num_pulses,3);
 
 % iterate through each pixel
 fprintf('Performing backprojection\n')
@@ -218,35 +209,54 @@ for ix = 1:Nx % cross range
             % find the range of the pixel to the radar
             range = norm(pixel_location_radar);
 
-            if trow == iy && tcol == ix
-                
-                % save the range difference for the pixel
-                % that should contain target 2
-                ranges_diff(ipulse) = ...
-                    abs(range - ranges(ipulse,2));
-                pixel_locations2(ipulse,:) = ...
-                    pixel_location_radar;
-
-                % debugging
-                % if mod(ipulse, round(num_pulses/10)) == 0
-                %     % find the range index
-                %     [~,range_idx] = min(abs(range_array - range));
-                % 
-                %     % find the abs rx value corresponding to
-                %     % this range
-                %     abs_rx = abs(rx_signal_range_compressed(ipulse, range_idx));    
-                % 
-                %     figure
-                %     plot(abs(rx_signal_range_compressed(ipulse,:)))
-                %     xline(range_idx)
-                % 
-                % end
-            end
+            % debugging
+            % if trow == iy && tcol == ix
+            % 
+            %     % save the range difference for the pixel
+            %     % that should contain target 2
+            %     ranges_diff(ipulse) = ...
+            %         abs(range - ranges(ipulse,2));
+            %     pixel_locations2(ipulse,:) = ...
+            %         pixel_location_radar;
+            % 
+            %     if mod(ipulse, round(num_pulses/10)) == 0
+            %         find the range index
+            %         [~,range_idx] = min(abs(range_array - range));
+            % 
+            %         find the abs rx value corresponding to
+            %         this range
+            %         abs_rx = abs(rx_signal(ipulse, range_idx));    
+            % 
+            %         f = figure('Visible','on');
+            %         subplot(1,2,1)
+            %         sgtitle('Range profile and the range of rotated pixel after 300 pulse iterations', 'FontSize', 24)
+            %         plot(range_array, 20*log10(abs(rx_signal(ipulse,:))), 'DisplayName', 'Log-scaled range profile')
+            %         xline(range_array(range_idx), 'DisplayName', 'Range of rotated pixel', 'LineWidth', 1.5, 'Color', 'r')
+            %         xlabel('Range [m]', 'FontSize', 16)
+            %         ylabel('Log-scaled range profile', 'FontSize', 16)
+            %         ax = gca;
+            %         set(ax,'FontSize',16)
+            %         legend
+            % 
+            %         subplot(1,2,2)
+            %         plot(range_array, 20*log10(abs(rx_signal(ipulse,:))), 'DisplayName', 'Log-scaled range profile')
+            %         xline(range_array(range_idx), 'DisplayName', 'Range of rotated pixel', 'LineWidth', 1.5, 'Color', 'r')
+            %         xlabel('Range [m]', 'FontSize', 16)
+            %         ylabel('Log-scaled range profile', 'FontSize', 16)
+            %         ax = gca;
+            %         set(ax,'FontSize',16)
+            %         legend
+            %         set(gcf, 'Position', get(0, 'Screensize'));
+            %         xlim([range_array(range_idx) - 10, range_array(range_idx) + 10])
+            %         saveas(f,'plots/backproj_range.png')
+            % 
+            %     end
+            % end
 
             % interpolate the range
             echo = interp1(...
                 range_array, ...
-                rx_signal_range_compressed(ipulse, :), ...
+                rx_signal(ipulse, :), ...
                 range, ...
                 'pchip', 0);
 
@@ -309,31 +319,34 @@ ax = gca;
 set(ax,'FontSize',16)
 ax.YDir = "reverse";
 set(gcf, 'Position', get(0, 'Screensize'));
-%saveas(f,'plots/range_and_trj.png')
+% saveas(f,'plots/range_and_trj.png')
 
 % range compression
 
 f = figure('Visible','on');
 subplot(1,2,1)
-imagesc(range_array, 1:size(rx_signal_range_compressed, 1), abs(rx_signal_range_compressed))
+imagesc(range_array, 1:size(rx_signal, 1), abs(rx_signal))
 title('Absolute value range compressed ISAR image', 'FontSize', 24)
 xlabel('range [m]', 'FontSize', 16)
 ylabel('pulse index', 'FontSize', 16)
 colorbar
 axis square
 set(gca,'FontSize',16)
+xlim([990,1010])
 
-pulse_idx = round(size(rx_signal_range_compressed,1)/2);
+pulse_idx = round(size(rx_signal,1)/2);
 subplot(1,2,2)
-plot(range_array, log(abs(rx_signal_range_compressed(pulse_idx, :))))
+plot(range_array, log(abs(rx_signal(pulse_idx, :))))
 title(['Range profile for a singular range compressed pulse (' num2str(pulse_idx), ')'], 'FontSize', 24)
 xlabel('range [m]', 'FontSize', 16)
-ylabel('Log of Signal', 'FontSize', 16)
+ylabel('log-scaled signal', 'FontSize', 16)
 colorbar
 axis square
 set(gca,'FontSize',16)
 set(gcf, 'Position', get(0, 'Screensize'));
-%saveas(f,'plots/range_compression.png')
+xlim([990,1010])
+% saveas(f,'plots/range_compression.png')
+
 
 % backprojection
 
@@ -358,7 +371,7 @@ grid on
 colorbar   
 set(gca,'FontSize',16)
 set(gcf, 'Position', get(0, 'Screensize'));
-%saveas(f, 'plots/backproj.png')
+% saveas(f, 'plots/backproj.png')
 
 
 
