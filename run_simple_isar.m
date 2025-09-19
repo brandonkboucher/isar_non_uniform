@@ -37,7 +37,7 @@ num_pulses = round(T / dt_slow);
 num_range_bins = size(t_fast,1);
 
 t_tx = (-Tp/2 : dt_fast_time : Tp/2 - dt_fast_time)';
-tx_signal = sinc(B * t_tx); % baseband
+tx_signal = sinc(B * t_tx);
 
 
 %% define the target scatterers
@@ -83,27 +83,21 @@ for ipulse = 1:num_pulses
     % iterate through each target scatter
     for ipt = 1:num_scatterers
     
-        % extract the position of each scatterer
-        % relative to the axis of rotation
-        x = scatter_relative_positions(ipt,1); % [m]
-        y = scatter_relative_positions(ipt,2); % [m]
-        R0 = norm(target_center_position); % [m]
-        theta = yaws(ipulse);
+        % formulate the rotation matrix about the z axis
+        R = [cos(yaws(ipulse)), -sin(yaws(ipulse)), 0; ...
+             sin(yaws(ipulse)), cos(yaws(ipulse)), 0; ...
+             0, 0, 1];
         
-        R = [cos(yaw), -sin(yaw), 0; ...
-                 sin(yaw), cos(yaw), 0; ...
-                 0, 0, 1];
-        
+        % calculate the scatterer's position relative to the
+        % radar
         scatterer_absolute_position = ...
             (R * scatter_relative_positions(ipt,:)')' ...
             + target_center_position;
-        range1 = norm(scatterer_absolute_position);
+        range = norm(scatterer_absolute_position);
 
-        % calculate the range of the scatterer relative
-        % to the radar at the origin (0,0)
-        range = R0 + x*sin(theta) + y*cos(theta); % [m]
+        % calculate the dealy
         delay = 2 * range / c; % [s]
-        
+
         % define the reflectivity of the scatterer
         A = 1;
         
@@ -111,7 +105,7 @@ for ipulse = 1:num_pulses
         phase = exp( -1j * 4 * pi * fc * range / c);
         
         % define the echo, equation 2 - not sure if this
-        % should be normalized or unnormalized
+        % should be normalized or unnormalized sinc
         scatterer_signal = ...
             A * sinc(B * (t_fast - delay)) * phase;
         
@@ -122,9 +116,6 @@ for ipulse = 1:num_pulses
         
         % save target position data
         ranges(ipulse,ipt) = range;
-        R = [cos(yaw), -sin(yaw), 0; ...
-                 sin(yaw), cos(yaw), 0; ...
-                 0, 0, 1];
 
         scatterer_position = ...
             R * scatter_relative_positions(ipt,:)';
@@ -145,14 +136,11 @@ for ipulse =1:num_pulses
         conv(rx_signal(ipulse,:), h, "same");
 end
 
-% adjust the range axis by the match filter's group delay
-% range_array = range_array - (Tp * c / 2);
-
 
 %% backprojection
 
 % define the cross range resolution for the grid
-% cross_range_resolution =  c / (2 * yaws(end) * fc);
+%cross_range_resolution =  c / (2 * yaws(end) * fc);
 cross_range_resolution = 0.5;
 
 % define the image dimensions using the range and
@@ -175,14 +163,28 @@ y_array = (-floor(Ny/2):ceil(Ny/2)-1) * range_resolution;
 rx_signal_bp = zeros(Nx, Ny);
 
 t = tic;
-    
-% f = waitbar(0, 'Performing backprojection');
+
+% formulate the mesh grid
+[X,Y] = meshgrid(x_array,y_array);
+
+% locate the pixel corresponding to scatterer 2's initial
+% position
+[trow, tcol] = find(...
+    scatter_relative_positions(2,1) == X ...
+    & scatter_relative_positions(2,2) == Y);
+
+% for debugging purposes calculate the difference between
+% the range of target 2 and the pixel initially containing 
+% target 2 (should be zero across every pulse if motion is 
+% compensated for)
+ranges_diff = zeros(num_pulses,1);
+pixel_locations2 = zeros(num_pulses,3);
+
 % iterate through each pixel
 fprintf('Performing backprojection\n')
 for ix = 1:Nx % cross range
     
     if mod(ix, round(Nx/10)) == 0
-        % waitbar(ix/round(Nx),f,sprintf('Progress: %d %%', floor(ix/Nx*100)))
         fprintf('   %3.1f percent complete: %4.2f seconds\n',...
             (ix*100/round(Nx)), toc(t))
         t = tic;
@@ -192,13 +194,10 @@ for ix = 1:Nx % cross range
 
         % extract the pixel location relative to the
         % center of the target
-        pixel_location = [x_array(ix), y_array(iy), 0];
+        pixel_rel_location = [x_array(ix), y_array(iy), 0];
 
         % initialize the image value as zero
         image_value = 0;
-
-        % add a hamming window to surpress sidelobes
-        window = hamming(num_pulses);
 
         % iterate through each pulse
         for ipulse = 1:num_pulses
@@ -213,11 +212,36 @@ for ix = 1:Nx % cross range
                  0, 0, 1];
 
             pixel_location_radar = ...
-                (R * pixel_location')' ...
+                (R * pixel_rel_location')' ...
                 + target_center_position;
 
             % find the range of the pixel to the radar
             range = norm(pixel_location_radar);
+
+            if trow == iy && tcol == ix
+                
+                % save the range difference for the pixel
+                % that should contain target 2
+                ranges_diff(ipulse) = ...
+                    abs(range - ranges(ipulse,2));
+                pixel_locations2(ipulse,:) = ...
+                    pixel_location_radar;
+
+                % debugging
+                % if mod(ipulse, round(num_pulses/10)) == 0
+                %     % find the range index
+                %     [~,range_idx] = min(abs(range_array - range));
+                % 
+                %     % find the abs rx value corresponding to
+                %     % this range
+                %     abs_rx = abs(rx_signal_range_compressed(ipulse, range_idx));    
+                % 
+                %     figure
+                %     plot(abs(rx_signal_range_compressed(ipulse,:)))
+                %     xline(range_idx)
+                % 
+                % end
+            end
 
             % interpolate the range
             echo = interp1(...
@@ -231,8 +255,7 @@ for ix = 1:Nx % cross range
                 exp(1j * 4 * pi * fc * range / c);
 
             % calculation the pulse contribution
-            pulse_contribution = ...
-                window(ipulse) * echo * phase;
+            pulse_contribution = echo * phase;
 
             % Sum contribution
             image_value = ...
@@ -245,23 +268,22 @@ for ix = 1:Nx % cross range
 end
 
 
-%% trajectory
+%% plotting
 
 % range and trajectory
-
-figure
+close all
+f = figure('Visible','on');
 subplot(1,2,1)
 plot(t_slow, ranges, 'LineWidth', 2)
 title('Target Range', 'FontSize', 24)
 xlabel('Slow time', 'FontSize', 16)
 ylabel('Range', 'FontSize', 16)
 axis square
+grid on
 ax = gca;
 set(ax,'FontSize',16)
 ax.YDir = "reverse";
 
-xmin = min([scatterer_positions(:,:,1)], [], "all");
-ymin = min([scatterer_positions(:,:,2)], [], "all");
 subplot(1,2,2)
 for ipt = 1:size(scatterer_positions, 2)
 
@@ -273,7 +295,6 @@ for ipt = 1:size(scatterer_positions, 2)
     
     hold on
 
-    
 end
 
 ylim([-10, 10])
@@ -287,38 +308,43 @@ axis square
 ax = gca;
 set(ax,'FontSize',16)
 ax.YDir = "reverse";
+set(gcf, 'Position', get(0, 'Screensize'));
+%saveas(f,'plots/range_and_trj.png')
 
 % range compression
 
-% figure
-% subplot(1,2,1)
-% imagesc(range_array, 1:size(rx_signal_range_compressed, 1), abs(rx_signal_range_compressed))
-% title('Absolute value range compressed ISAR image', 'FontSize', 24)
-% xlabel('range [m]', 'FontSize', 16)
-% ylabel('pulse index', 'FontSize', 16)
-% colorbar
-% axis square
-% set(gca,'FontSize',16)
-% 
-% pulse_idx = round(size(rx_signal_range_compressed,1)/2);
-% subplot(1,2,2)
-% plot(range_array, log(abs(rx_signal_range_compressed(pulse_idx, :))))
-% title(['Range profile for a singular range compressed pulse (' num2str(pulse_idx), ')'], 'FontSize', 24)
-% xlabel('range [m]', 'FontSize', 16)
-% ylabel('Log of Signal', 'FontSize', 16)
-% colorbar
-% axis square
-% set(gca,'FontSize',16)
+f = figure('Visible','on');
+subplot(1,2,1)
+imagesc(range_array, 1:size(rx_signal_range_compressed, 1), abs(rx_signal_range_compressed))
+title('Absolute value range compressed ISAR image', 'FontSize', 24)
+xlabel('range [m]', 'FontSize', 16)
+ylabel('pulse index', 'FontSize', 16)
+colorbar
+axis square
+set(gca,'FontSize',16)
+
+pulse_idx = round(size(rx_signal_range_compressed,1)/2);
+subplot(1,2,2)
+plot(range_array, log(abs(rx_signal_range_compressed(pulse_idx, :))))
+title(['Range profile for a singular range compressed pulse (' num2str(pulse_idx), ')'], 'FontSize', 24)
+xlabel('range [m]', 'FontSize', 16)
+ylabel('Log of Signal', 'FontSize', 16)
+colorbar
+axis square
+set(gca,'FontSize',16)
+set(gcf, 'Position', get(0, 'Screensize'));
+%saveas(f,'plots/range_compression.png')
 
 % backprojection
 
-figure
+f = figure('Visible','on');
 subplot(1,2,1)
 imagesc(x_array, y_array, 20*log10(abs(rx_signal_bp.') + eps));
 title('Backprojection image - Log scaled', 'FontSize', 24)
 xlabel('x (cross-range)', 'FontSize', 16)
 ylabel('y (range)', 'FontSize', 16)
 axis square
+grid on
 colorbar   
 set(gca,'FontSize',16)
 
@@ -328,9 +354,11 @@ title('Backprojection image', 'FontSize', 24)
 xlabel('x (cross-range)', 'FontSize', 16)
 ylabel('y (range)', 'FontSize', 16)
 axis square
+grid on
 colorbar   
 set(gca,'FontSize',16)
-            
+set(gcf, 'Position', get(0, 'Screensize'));
+%saveas(f, 'plots/backproj.png')
 
 
 
