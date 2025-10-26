@@ -1,8 +1,9 @@
 
 %% define the scenario
 
-show_plots = false;
+show_plots = true;
 save_data = false;
+save_plots = false;
 
 % instantiate constants
 const = Constants;
@@ -295,7 +296,7 @@ end
 % saveas(f,'plots/mag_and_phase.png')
 
 % range and trajectory
-visible = 'false';
+visible = 'off';
 if show_plots
     visible = 'on'; 
 end
@@ -338,8 +339,9 @@ title('Target Trajectory', 'FontSize', 24)
 
 ax.YDir = "reverse";
 set(gcf, 'Position', get(0, 'Screensize'));
-saveas(f,'plots/range_and_trj.png')
-
+if save_plots
+    saveas(f,'plots/range_and_trj.png')
+end
 % range compression
 
 f = figure('Visible',visible);
@@ -364,8 +366,9 @@ axis square
 set(gca,'FontSize',16)
 set(gcf, 'Position', get(0, 'Screensize'));
 xlim([990,1010])
-saveas(f,'plots/range_compression.png')
-
+if save_plots
+    saveas(f,'plots/range_compression.png')
+end
 
 % backprojection
 
@@ -392,7 +395,9 @@ set(gca,'FontSize',16)
 title('Backprojection image', 'FontSize', 24)
 
 set(gcf, 'Position', get(0, 'Screensize'));
-saveas(f, 'plots/backproj.png')
+if save_plots
+    saveas(f, 'plots/backproj.png')
+end
 
 % save data for compressed sensing use
 if save_data

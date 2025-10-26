@@ -3,3 +3,7 @@
 **/data
 **/dev
 **/.DS_Store
+functions/archive
+classes/Targets/archive
+scenarios/archive
+videos

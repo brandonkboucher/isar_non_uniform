@@ -1,40 +1,38 @@
 
 close all
 
-%% Plotting
-
-% instantiate plotting
-p = plotting();
-p.visible                       = false;
-p.bool_plot_all                 = false;
-
-%% Simulation Parameters
-
-% simulation parameters
-sim_params = Simulation_Parameters();
-sim_params.translational_moco   = false;
-sim_params.backprojection       = true;
-sim_params.range_doppler        = false;
+show_plots = true;
+save_data = false;
+save_plots = false;
 
 % define the length of the simulation
 T = 1; % [s]
 
-%% Target
-
 % define the scenario
-sc = tabletop_L_simple_sig_sc(T);
-%sc = simple_circ_target1_sc(T);
-
-%% Run Simulation
+sc = scenario_basic(T);
 
 % execute the isar imager
-output_struct = isar_imager(sc.signal, sc.target, sim_params);
+output = isar_imager(sc);
 
-% plot the results
-p.plot(output_struct);
+%% plotting
+plot_backprojection(...
+    output.rx_signal_bp, ...
+    output.x_array, ...
+    output.y_array, ...
+    show_plots, ...
+    save_plots);
 
+plot_target_range_and_traj(...
+    sc.signal.t_slow, ...
+    output.ranges, ...
+    output.scatterer_positions, ...
+    show_plots, ...
+    save_plots);
 
-
+%% save data
+if save_data
+    save('data/rx_signal_bp_sd.mat', "output.rx_signal_bp");
+end
 
 
 
