@@ -13,6 +13,8 @@ function plot_backprojection(...
     f = figure('Visible',visible);
     subplot(1,2,1)
     imagesc(x_array, y_array, 20*log10(abs(rx_signal_bp.') + eps));
+    colormap("gray")
+    colorbar
     xlabel('x (cross-range)', 'FontSize', 16)
     ylabel('y (range)', 'FontSize', 16)
     axis square
@@ -24,6 +26,8 @@ function plot_backprojection(...
     
     subplot(1,2,2)
     imagesc(x_array, y_array, abs(rx_signal_bp.'))
+    colormap("gray")
+    colorbar
     xlabel('x (cross-range)', 'FontSize', 16)
     ylabel('y (range)', 'FontSize', 16)
     axis square
