@@ -1,9 +1,10 @@
-function plot_backprojection(...
+function plot_backprojection_sd(...
     rx_signal_bp, ...
     x_array, ...
     y_array, ...
     show_plots, ...
-    save_plots)
+    save_plots, ...
+    filename)
     
     visible = 'off';
     if show_plots
@@ -14,12 +15,13 @@ function plot_backprojection(...
     subplot(1,2,1)
     imagesc(x_array, y_array, 20*log10(abs(rx_signal_bp.') + eps));
     colormap("gray")
-    colorbar
+    
     xlabel('x (cross-range)', 'FontSize', 16)
     ylabel('y (range)', 'FontSize', 16)
     axis square
     grid on
-    colorbar   
+    c1 = colorbar;
+    c1.Label.String = 'Amplitude [dB]';
     set(gca,'FontSize',16)
     title('Backprojection image - Log scaled', 'FontSize', 24)
     
@@ -32,13 +34,14 @@ function plot_backprojection(...
     ylabel('y (range)', 'FontSize', 16)
     axis square
     grid on
-    colorbar   
+    c2 = colorbar;
+    c2.Label.String = 'Amplitude [Linear]';    
     set(gca,'FontSize',16)
     title('Backprojection image', 'FontSize', 24)
     
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots
-        saveas(f, 'plots/backproj.png')
+        saveas(f, ['plots/backproj_sd_', filename, '.png'])
     end
 end
 

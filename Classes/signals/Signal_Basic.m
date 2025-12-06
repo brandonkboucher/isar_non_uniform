@@ -66,7 +66,7 @@ classdef Signal_Basic
             obj.range_resolution = const.c / (2 * obj.B);
             
             % calculate the number of pulses
-            obj.num_pulses = round(T / dt_slow);
+            obj.num_pulses = floor(T / dt_slow);
             obj.num_range_bins = size(obj.t_fast,1);
 
         end

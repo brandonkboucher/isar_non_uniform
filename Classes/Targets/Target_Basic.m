@@ -1,4 +1,4 @@
-classdef Target_Basic
+classdef Target_Basic < handle
     %TARGET_BASIC Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -9,7 +9,10 @@ classdef Target_Basic
                                       0, 3, 0; ...
                                       0, 0, 0];
         yawing_rate = pi/4;
+        yawing_acceleration = 0;
         yaws
+
+        t_slow
 
     end
     
@@ -17,6 +20,7 @@ classdef Target_Basic
         function obj = Target_Basic(...
                 t_slow,...
                 yawing_rate,...
+                yawing_acceleration, ...
                 varargin)
 
             % varargin must be of the form:
@@ -36,13 +40,23 @@ classdef Target_Basic
                 obj.scatter_relative_positions = ...
                     varargin{3};
             end
-            
+            obj.t_slow = t_slow;
             obj.yawing_rate = yawing_rate;
-
-            % calculate the yaws
-            obj.yaws = obj.yawing_rate * t_slow;
+            obj.yawing_acceleration = yawing_acceleration;
+            
         end
         
+        function obj = set.yawing_acceleration(obj, yawing_acceleration)
+            obj.yawing_acceleration = yawing_acceleration;
+            obj.set_yaws();
+        end
+
+        function obj = set_yaws(obj)
+            % calculate the yaws
+            obj.yaws = obj.yawing_rate * obj.t_slow ...
+                + (1/2) * obj.yawing_acceleration * obj.t_slow .* obj.t_slow;
+            
+        end
     end
 end
 
