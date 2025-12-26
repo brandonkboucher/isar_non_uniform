@@ -10,17 +10,17 @@ const = Constants;
 c = const.c;
 
 % simulation duration
-T = 1; % [s]
+T = 0.01; % [s]
             
 % initialize radar parameters and LFM signal model
-fc  = 10 * const.GHz2Hz; % [Hz] center frequency - X-band
+fc  = 1 * const.GHz2Hz; % [Hz] center frequency - X-band
 B   = 149.9 * const.MHz2Hz; % [Hz] bandwidth
-prf = 1 * const.kHz2Hz; % [Hz] pulse repetition frequency
+prf = 10 * const.kHz2Hz; % [Hz] pulse repetition frequency
 fs  = 600 * const.MHz2Hz; % [Hz] sampling frequency
 Tp  = 10 * const.us2s; % [s] pulse width
 
 
-%% basic signal model
+% basic signal model
 
 % slow time, pulse response interval (PRI)
 dt_slow = 1/prf; % [s]
@@ -41,7 +41,7 @@ num_pulses = round(T / dt_slow);
 num_range_bins = size(t_fast,1);
 
 
-%% define the target scatterers
+% define the target scatterers
 
 % number of scatterers
 num_scatterers = 3;
@@ -49,16 +49,16 @@ num_scatterers = 3;
 % define the target's initial position
 target_center_position = [0, 1000, 0];
 
-scatter_relative_positions = [7, 0, 0; ...
+scatter_relative_positions = [2, 0, 0; ...
                               0, 3, 0; ...
                               0, 0, 0];
 
 % calculate the yaws
-yawing_rate = pi/4;
+yawing_rate = 2*pi;
 yaws = yawing_rate * t_slow;
 
 
-%% raw isar image
+% raw isar image
 
 % initialize received signal matrix
 % [number of range cells x number of cross range cells]
@@ -123,7 +123,7 @@ for ipulse = 1:num_pulses
 end
 
 
-%% backprojection
+% backprojection
 
 % define the cross range resolution for the grid
 %cross_range_resolution =  c / (2 * yaws(end) * fc);
@@ -132,13 +132,13 @@ cross_range_resolution = 1;
 % define the image dimensions using the range and
 % cross-range resolution and the extent of the
 % dimensions, 
-cross_range_extent = 20; % [m]
-range_extent = 20; % [m]
+y_extent = 9; % [m]
+x_extent = 9; % [m]
 
 % the output of the backprojection algorithm will be 
 % [Nx x Ny] where Nx is cross-range, Ny is range
-Nx = round(cross_range_extent / cross_range_resolution);
-Ny = round(range_extent / range_resolution);
+Nx = round(y_extent / cross_range_resolution);
+Ny = round(x_extent / range_resolution);
 
 % calculate the x and y values that define the image and
 % the pixel locations relative to the radar
@@ -160,9 +160,112 @@ t = tic;
 % the range of target 2 and the pixel initially containing 
 % target 2 (should be zero across every pulse if motion is 
 % compensated for)
-ranges_diff = zeros(num_pulses,1);
-contributions = zeros(num_pulses, 1);
-phases_bp = zeros(num_pulses, 1);
+ranges_diff     = zeros(num_pulses,1);
+contributions   = zeros(num_pulses, 1);
+phases_bp       = zeros(num_pulses, 1);
+
+%%
+% from Fosca 2021, Equation 7: find the indices
+% corresponding to a minimization of the
+% difference between the distance from each grid point to each range
+
+% iterate through each pulse
+asm = sparse(Nx * Ny, Nx * Ny * num_pulses);
+gim_array = cell(num_pulses,1);
+
+d_max = norm(target_center_position);
+d_min = d_max;
+
+for ipulse = 1:num_pulses
+
+    phase = zeros(Nx * Ny, 1);
+    gim_per_pulse = zeros(Nx * Ny, num_range_bins);
+
+    for ix = 1:Nx % cross range
+    
+        for iy = 1:Ny % range
+    
+            % extract the pixel location relative to the
+            % center of the target
+            pixel_rel_location = [x_array(ix), y_array(iy), 0];
+    
+            idx = find(...
+                 x_array(ix) == X(:) ...
+                & y_array(iy) == Y(:));
+        
+            % formulate the rotation matrix about the z axis
+            R = [cos(yaws(ipulse)), -sin(yaws(ipulse)), 0; ...
+                 sin(yaws(ipulse)), cos(yaws(ipulse)), 0; ...
+                 0, 0, 1];
+        
+            pixel_location_radar = ...
+                (R * pixel_rel_location')' ...
+                + target_center_position;
+        
+            % find the range of the pixel to the radar
+            d = norm(pixel_location_radar); % eq 5
+           
+            k1 = find(range_array <= d, 1, 'last'); % eq 7.
+            if isempty(k1) || k1 > num_range_bins
+                warning('k1 out of bounds.')
+            end
+            k2 = k1 + 1;
+            
+            w1 = 1 - (d - range_array(k1)) / (range_array(k2) - range_array(k1));
+            w2 = 1 - (range_array(k2) - d) / (range_array(k2) - range_array(k1));
+            gim_per_pulse(idx, [k1, k2]) = [w1, w2];
+        
+            phase(idx) = exp(1j * 4 * pi * fc * d / c);
+
+            if d_max < d
+                d_max = d;
+            end
+            if d_min > d
+                d_min = d;
+            end
+        end
+    end
+    gim_array{ipulse} = gim_per_pulse;
+    asm(:, (ipulse - 1)*Nx*Ny + (1:Nx*Ny)) = ...
+        spdiags(phase, 0, Nx*Ny, Nx*Ny);
+end
+
+% truncate the gim to prevent storage constraints
+min_idx = find(d_min >= range_array, 1, "last");
+max_idx = find(d_max <= range_array, 1);
+g = cellfun(@(x) x(:,min_idx:max_idx), gim_array, 'UniformOutput', false);
+
+% truncate ranges
+range_idx = min_idx:max_idx;
+num_trunc_range_bins = size(range_idx,2);
+rx_signal_trunc = rx_signal(:,min_idx:max_idx); % [pulses x ranges]
+rx_signal_trunc_vec = reshape(rx_signal_trunc.', [], 1);
+
+% formulate the interpolation matrix 
+% [Nx * Ny * num_pulses x num_pulses * num_ranges]
+gim = blkdiag(g{:});
+
+% apply interpolation matrix
+s_interp = gim * rx_signal_trunc_vec;
+
+% apply asm for azimuth compression
+Isar = asm * s_interp; % eq 10
+Isar = reshape(Isar, [Nx, Ny]);
+
+figure
+imagesc(abs(Isar))
+
+plot_backprojection_sd(...
+    Isar.', ...
+    x_array, ...
+    y_array, ...
+    show_plots, ...
+    save_plots);
+
+
+%%
+% range_array = range_array(range_idx);
+% rx_signal = rx_signal_trunc;
 
 % iterate through each pixel
 fprintf('Performing backprojection\n')
@@ -234,7 +337,8 @@ for ix = 1:Nx % cross range
                 range_array, ...
                 rx_signal(ipulse, :), ...
                 range, ...
-                'linear', 0);
+                'linear',...
+                0);
 
             % Apply phase correction (match propagation delay
             phase = exp( 1j * 4 * pi * fc * range / c);
@@ -262,6 +366,12 @@ for ix = 1:Nx % cross range
     end
 end
 
+% calculate the kx and ky grid points
+kx = (-Nx/2:Nx/2-1) / (Nx*range_resolution);  % m^-1
+ky = (-Ny/2:Ny/2-1) / (Ny*cross_range_resolution);  % m^-1
+
+% transform from the image domain to k-space
+rx_signal_sfd = sd_to_sfd(rx_signal_bp);
 
 plot_backprojection_sd(...
     rx_signal_bp, ...
@@ -307,6 +417,14 @@ visible = 'off';
 if show_plots
     visible = 'on'; 
 end
+
+plot_backprojection_sfd(...
+    rx_signal_sfd, ...
+    kx, ...
+    ky, ...
+    show_plots, ...
+    save_plots, ...
+    '');
 
 f = figure('Visible',visible);
 subplot(1,2,1)
@@ -355,6 +473,7 @@ f = figure('Visible',visible);
 subplot(1,2,1)
 title('Absolute value range compressed ISAR image', 'FontSize', 24)
 imagesc(range_array, 1:size(rx_signal, 1), abs(rx_signal))
+colormap gray
 xlabel('range [m]', 'FontSize', 16)
 ylabel('pulse index', 'FontSize', 16)
 colorbar
@@ -382,6 +501,7 @@ end
 f = figure('Visible',visible);
 subplot(1,2,1)
 imagesc(x_array, y_array, 20*log10(abs(rx_signal_bp.') + eps));
+colormap gray
 xlabel('x (cross-range)', 'FontSize', 16)
 ylabel('y (range)', 'FontSize', 16)
 axis square
@@ -393,6 +513,7 @@ title('Backprojection image - Log scaled', 'FontSize', 24)
 
 subplot(1,2,2)
 imagesc(x_array, y_array, abs(rx_signal_bp.'))
+colormap gray
 xlabel('x (cross-range)', 'FontSize', 16)
 ylabel('y (range)', 'FontSize', 16)
 axis square

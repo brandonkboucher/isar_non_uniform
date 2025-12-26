@@ -21,11 +21,11 @@ classdef scenario_basic_small < handle
             end
 
             % define rotation rate of target
-            yawing_rate = pi/4;
+            yawing_rate = 2*pi;
             yawing_acceleration = 0;
 
             if ~isnan(obj.angular_extent)
-                obj.T = calculate_simulation_duration(...
+                obj.T = calculate_variable_simulation_duration(...
                     angular_extent, ...
                     yawing_rate, ...
                     yawing_acceleration);
@@ -39,10 +39,8 @@ classdef scenario_basic_small < handle
             %fc  = 10 * const.GHz2Hz; % [Hz] center frequency - X-band
             fc  = 1 * const.GHz2Hz; % [Hz] center frequency - X-band
             B   = 149.9 * const.MHz2Hz; % [Hz] bandwidth
-            % prf = 1 * const.kHz2Hz; % [Hz] pulse repetition frequency
             prf = 10 * const.kHz2Hz; % [Hz] pulse repetition frequency
             fs  = 600 * const.MHz2Hz; % [Hz] sampling frequency
-            % Tp  = 5 * const.us2s; % [s] pulse width
             Tp  = 10 * const.us2s; % [s] pulse width
 
             % define the LFM signal
@@ -50,9 +48,9 @@ classdef scenario_basic_small < handle
 
             num_scatterers = 3;
             target_center_position = [0, 1000, 0];
-            scatter_relative_positions = [2, 0, 0; ...
+            scatter_relative_positions = [0, 0, 0; ...
                                           0, 3, 0; ...
-                                          0, 0, 0];
+                                          2, 0, 0];
 
             % intialize target
             obj.target = Target_Basic(...

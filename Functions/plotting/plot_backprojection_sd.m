@@ -4,7 +4,7 @@ function plot_backprojection_sd(...
     y_array, ...
     show_plots, ...
     save_plots, ...
-    filename)
+    varargin)
     
     visible = 'off';
     if show_plots
@@ -41,7 +41,11 @@ function plot_backprojection_sd(...
     
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots
-        saveas(f, ['plots/backproj_sd_', filename, '.png'])
+        if ~isempty(varargin{1})
+            saveas(f, ['plots/backproj_sd_', filename, '.png'])
+        else
+            saveas(f, 'plots/backproj_sd.png')
+        end
     end
 end
 

@@ -49,7 +49,7 @@ num_scatterers = 3;
 % define the target's initial position
 target_center_position = [0, 1000, 0];
 
-scatter_relative_positions = [7, 0, 0; ...
+scatter_relative_positions = [2, 0, 0; ...
                               0, 3, 0; ...
                               0, 0, 0];
 
@@ -132,8 +132,8 @@ cross_range_resolution = 1;
 % define the image dimensions using the range and
 % cross-range resolution and the extent of the
 % dimensions, 
-cross_range_extent = 20; % [m]
-range_extent = 20; % [m]
+cross_range_extent = 9; % [m]
+range_extent = 9; % [m]
 
 % the output of the backprojection algorithm will be 
 % [Nx x Ny] where Nx is cross-range, Ny is range
