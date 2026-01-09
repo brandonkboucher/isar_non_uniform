@@ -1,17 +1,15 @@
-classdef scenario_basic_small < handle
-    
-
+classdef scenario_psf < handle
     
     properties
         signal
         target
-
+       
         angular_extent = nan
         T = nan
     end
     
     methods
-        function obj = scenario_basic_small(T, angular_extent)
+        function obj = scenario_psf(T, angular_extent)
             
             obj.T = T;
             obj.angular_extent = angular_extent;
@@ -46,11 +44,9 @@ classdef scenario_basic_small < handle
             % define the LFM signal
             obj.signal = Signal_Basic(fc, B, prf, fs, Tp, obj.T);
 
-            num_scatterers = 3;
+            num_scatterers = 1;
             target_center_position = [0, 1000, 0];
-            scatter_relative_positions = [0, 0, 0; ...
-                                          0, 3, 0; ...
-                                          2, 0, 0];
+            scatter_relative_positions = [0, 0, 0];
 
             % intialize target
             obj.target = Target_Basic(...

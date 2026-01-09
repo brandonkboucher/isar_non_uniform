@@ -6,7 +6,6 @@ function [rx_signal_bp, x_array, y_array] = ...
         target, ...
         rx_signal, ...
         image_parameters, ...
-        truncate, ...
         varargin)
 
     use_estimation = false;
@@ -28,22 +27,20 @@ function [rx_signal_bp, x_array, y_array] = ...
 
     % define a truncated grid around one of the target
     % scatterers
-    if truncate
+    if image_parameters.truncate
         
-        truncation_margin = 5;
-
         % extract target location (x,y)
         target_location_x = X(trow, tcol);
         target_location_y = Y(trow, tcol);
 
         % re-formulate x and y array
         x_array = ...
-            (target_location_x - truncation_margin)...
+            (target_location_x - image_parameters.truncation_margin)...
             :image_parameters.x_pixel_resolution...
-            :(target_location_x + truncation_margin);
-        y_array = (target_location_y - truncation_margin)...
+            :(target_location_x + image_parameters.truncation_margin);
+        y_array = (target_location_y - image_parameters.truncation_margin)...
             :image_parameters.y_pixel_resolution...
-            :(target_location_y + truncation_margin);
+            :(target_location_y + image_parameters.truncation_margin);
 
         % redefine x and y array sizes
         Nx = size(x_array, 2);
@@ -56,6 +53,24 @@ function [rx_signal_bp, x_array, y_array] = ...
         Ny = image_parameters.Ny;
         x_array = image_parameters.x_array;
         y_array = image_parameters.y_array;
+
+    end
+
+    if strcmp(image_parameters.imager, 'weighted')
+
+        % normalized angular sampling weighting based off of
+        % Tang_2016 and Zeng_2012, padded first value
+        weights = zeros(size(target.yaws,1),1);
+        weights(1) = target.yaws(2) - target.yaws(1);
+        weights(end) = target.yaws(end) - target.yaws(end-1);
+    
+        for k = 2:size(target.yaws,1)-1
+            weights(k) = (target.yaws(k+1) - target.yaws(k-1))/2;
+        end
+        weights = weights ./ sum(weights);
+
+    else
+        weights = ones(size(target.yaws,1),1);
 
     end
 
@@ -88,77 +103,34 @@ function [rx_signal_bp, x_array, y_array] = ...
             % iterate through each pulse
             for ipulse = 1:signal.num_pulses
     
-                if use_estimation
-                
-                    pixel_location_radar = ...
-                        pixel_rel_location ...
-                        + target.target_center_position;
+                % formulate the rotation matrix about the z axis
+                R = [cos(target.yaws(ipulse)), -sin(target.yaws(ipulse)), 0; ...
+                     sin(target.yaws(ipulse)), cos(target.yaws(ipulse)), 0; ...
+                     0, 0, 1];
+    
+                pixel_location_radar = ...
+                    (R * pixel_rel_location')' ...
+                    + target.target_center_position;
+    
+                % find the range of the pixel to the radar
+                range = norm(pixel_location_radar);
+                range_matrix(ix,iy,ipulse) = range;
+    
+                % interpolate the range
+                echo = interp1(...
+                    signal.range_array, ...
+                    rx_signal(ipulse, :), ...
+                    range, ...
+                    'linear', 0);
         
-                    % find the range of the pixel to the radar
-                    range = norm(pixel_location_radar) ...
-                        - drift_estimation(ipulse);
-        
-                    % if trow == iy && tcol == ix ...
-                    %     && ipulse == 1
-                    %     % find the range index
-                    %     [~,range_idx] = min(abs(signal.range_array - range));
-                    % 
-                    %     % find the abs rx value corresponding to
-                    %     % this range
-                    %     abs_rx = abs(rx_signal(ipulse, range_idx));
-                    % end
+                % Apply phase correction (match propagation delay
+                phase = exp( 1j * 4 * pi * signal.fc * range / const.c);
 
-                    % interpolate the range
-                    echo = interp1(...
-                        signal.range_array, ...
-                        rx_signal(ipulse, :), ...
-                        range, ...
-                        'linear', 0);
-        
-                    % apply the correction to the range to
-                    % compensate for the target's rotational
-                    % motion and convert from range bins to
-                    % meters
-                    % range_correction = ...
-                    %     drift_estimation(ipulse) ...
-                    %     * image_parameters.range_grid_resolution;
-                    % 
-                    % % Apply phase correction (match propagation delay
-                    % phase = exp( 1j * 4 * pi * signal.fc ...
-                    %     * (range - range_correction) / const.c);
-
-                    % Apply phase correction (match propagation delay
-                    phase = exp( 1j * 4 * pi * signal.fc * range / const.c);
-
-                else
-                    % formulate the rotation matrix about the z axis
-                    R = [cos(target.yaws(ipulse)), -sin(target.yaws(ipulse)), 0; ...
-                         sin(target.yaws(ipulse)), cos(target.yaws(ipulse)), 0; ...
-                         0, 0, 1];
-        
-                    pixel_location_radar = ...
-                        (R * pixel_rel_location')' ...
-                        + target.target_center_position;
-        
-                    % find the range of the pixel to the radar
-                    range = norm(pixel_location_radar);
-                    range_matrix(ix,iy,ipulse) = range;
-
-                    % interpolate the range
-                    echo = interp1(...
-                        signal.range_array, ...
-                        rx_signal(ipulse, :), ...
-                        range, ...
-                        'linear', 0);
-        
-                    % Apply phase correction (match propagation delay
-                    phase = exp( 1j * 4 * pi * signal.fc * range / const.c);
-                end
                 % calculation the pulse contribution
                 pulse_contribution = echo * phase;
     
                 % Sum contribution
-                image_value = image_value + pulse_contribution;
+                image_value = image_value + weights(ipulse) * pulse_contribution;
                 
             end
             rx_signal_bp(ix,iy) = image_value; % [cross range x range]

@@ -20,45 +20,45 @@ function plot_backprojection_comparison_sd(...
     truth_output = load(truth_data_dir);
     truth_output = truth_output.output;
     
-    cmax = max(20*log10(abs(truth_output.rx_signal_bp.') + eps), [], "all");
+    cmax = max(abs(truth_output.rx_signal_bp.'), [], "all");
 
     %% original plot
     subplot(1,2,1)
-    imagesc(x_array, y_array, 20*log10(abs(truth_output.rx_signal_bp.') + eps))
+    imagesc(x_array, y_array, abs(truth_output.rx_signal_bp.'))
     colormap("gray")
     xlabel('x (cross-range) [m]', 'FontSize', 16)
     ylabel('y (range) [m]', 'FontSize', 16)
     axis square
     grid on
     c2 = colorbar;
-    c2.Label.String = 'Amplitude [dB]'; 
+    c2.Label.String = 'Amplitude [Linear]'; 
     c2.FontSize = 16;
     caxis([0, cmax])
     set(gca,'FontSize',16)
     
-    orig_title = create_title('SD image', original_omega, inf);
-    title(orig_title, 'FontSize', 24, 'Interpreter','latex')
+    % orig_title = create_title('SD image', original_omega, inf);
+    % title(orig_title, 'FontSize', 24, 'Interpreter','latex')
     
     %% new plot
     subplot(1,2,2)
-    imagesc(x_array, y_array, 20*log10(abs(rx_signal_bp.') + eps));
+    imagesc(x_array, y_array, abs(rx_signal_bp.'));
     colormap("gray")
     xlabel('x (cross-range) [m]', 'FontSize', 16)
     ylabel('y (range) [m]', 'FontSize', 16)
     axis square
     grid on
     c1 = colorbar;
-    c1.Label.String = 'Amplitude [dB]';   
+    c1.Label.String = 'Amplitude [Linear]';  
     c1.FontSize = 16;
     caxis([0, cmax])
     set(gca,'FontSize',16)
 
-    title_str = create_title('SD image', omega, omega_dot);
-    title(title_str, 'FontSize', 24, 'Interpreter','latex')
+    % title_str = create_title('SD image', omega, omega_dot);
+    % title(title_str, 'FontSize', 24, 'Interpreter','latex')
 
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots
-        saveas(f, ['plots/backproj_sd_comp_', num2str(omega_dot), '.png'])
+        saveas(f, ['plots/backproj_sd_amp_comp_', num2str(omega_dot), '.png'])
     end
 end
 

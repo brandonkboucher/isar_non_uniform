@@ -23,7 +23,7 @@ function plot_backprojection_sfd(...
     c1 = colorbar;
     c1.Label.String = 'Amplitude [dB]';   
     set(gca,'FontSize',16)
-    title('Backprojection SFD image - Log scaled', 'FontSize', 24)
+    title('SFD image - Log scaled', 'FontSize', 24)
     
     
     subplot(1,2,2)
@@ -37,7 +37,7 @@ function plot_backprojection_sfd(...
     c2 = colorbar;
     c2.Label.String = 'Amplitude [Linear]';   
     set(gca,'FontSize',16)
-    title('Backprojection SFD image', 'FontSize', 24)
+    title('SFD image', 'FontSize', 24)
     
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots

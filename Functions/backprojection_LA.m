@@ -23,20 +23,18 @@ function [rx_signal_bp, x_array, y_array] = ...
     % scatterers
     if truncate
         
-        truncation_margin = 4;
-
         % extract target location (x,y)
         target_location_x = X(trow, tcol);
         target_location_y = Y(trow, tcol);
 
         % re-formulate x and y array
         x_array = ...
-            (target_location_x - truncation_margin)...
+            (target_location_x - image_parameters.truncation_margin)...
             :image_parameters.x_pixel_resolution...
-            :(target_location_x + truncation_margin);
-        y_array = (target_location_y - truncation_margin)...
+            :(target_location_x + image_parameters.truncation_margin);
+        y_array = (target_location_y - image_parameters.truncation_margin)...
             :image_parameters.y_pixel_resolution...
-            :(target_location_y + truncation_margin);
+            :(target_location_y + image_parameters.truncation_margin);
 
         % re-formulate the meshgrid
         [X,Y] = meshgrid(...
@@ -148,11 +146,11 @@ function [rx_signal_bp, x_array, y_array] = ...
     % [Nx * Ny * num_pulses x num_pulses * num_ranges]
     gim = blkdiag(g{:});
     
-    % apply interpolation matrix
-    s_interp = gim * rx_signal_trunc_vec;
+    % calculate the sparsifying transformation matrix Psi
+    psi = asm * gim; % [Nx * Ny x num_pulses * num_ranges]
     
     % apply asm for azimuth compression
-    rx_signal_bp = asm * s_interp; % eq 10
+    rx_signal_bp = psi * rx_signal_trunc_vec; % eq 10
     rx_signal_bp = reshape(rx_signal_bp, [Nx, Ny]);
     rx_signal_bp = rx_signal_bp.';
 
