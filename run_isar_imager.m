@@ -2,25 +2,29 @@
 fprintf('-------------------------------------------\n')
 %close all
 
-show_plots  = true;
-save_data   = false;
-save_plots  = false;
+show_plots      = true;
+save_plots      = false;
 compare_results = false;
-truth_data_dir = 'data/truth_la.mat';
+include_title   = false;
+plotting_dir    = 'plots/crossrange_alias_weighted_complex';
+
+save_data       = false;
+truth_data_dir = 'data/truth_sd_la.mat';
 
 % define the length of the simulation
-T = nan; % [s]
-angular_extent = deg2rad(32); % [rad]
+T              = 0.5; % [s]
+angular_extent = nan; % [rad]
 
 % define the scenario
-sc = scenario_basic(T, angular_extent);
+sc = scenario_crossrange_aliasing(T, angular_extent);
+%sc = scenario_basic(T, angular_extent);
 
 % define imaging parameters
 image_parameters.x_pixel_resolution = 0.25; % [m] range
 image_parameters.y_pixel_resolution = 0.25; % [m] cross-range
 image_parameters.x_extent           = 20; % [m] range
 image_parameters.y_extent           = 20; % [m] cross-range
-image_parameters.truncate           = true;
+image_parameters.truncate           = false;
 image_parameters.truncation_margin  = 4; % [m]
 image_parameters.imager             = 'standard'; % 'standard' or 'weighted'
 
@@ -29,11 +33,19 @@ output = isar_imager(sc, image_parameters);
 
 
 %% plotting
-% plot_raw_isar(...
-%     output.rx_signal, ...
-%     sc.signal.range_array, ...
-%     show_plots, ...
-%     save_plots);
+
+if ~isfolder(plotting_dir) 
+    mkdir(plotting_dir);
+end
+
+plot_target_yawing(...
+    sc.signal.t_slow, ...
+    sc.target, ...
+    show_plots, ...
+    save_plots, ...
+    include_title, ...
+    plotting_dir);
+
 original_omega = pi;
 original_omega_factor = 1/(original_omega/pi);
 omega_factor = 1/(sc.target.yawing_rate/pi);
@@ -56,7 +68,8 @@ plot_backprojection_sd(...
     output.y_array, ...
     show_plots, ...
     save_plots, ...
-    num2str(omega_factor));
+    include_title, ...
+    plotting_dir);
 
 plot_backprojection_sfd(...
     output.rx_signal_sfd, ...
@@ -64,7 +77,8 @@ plot_backprojection_sfd(...
     output.ky, ...
     show_plots, ...
     save_plots, ...
-    num2str(omega_factor));
+    include_title, ...
+    plotting_dir);
 
 if compare_results
     
@@ -109,19 +123,22 @@ plot_target_range_and_traj(...
     sc.target.yaws, ...
     show_plots, ...
     save_plots, ...
-    num2str(omega_factor));
+    include_title, ...
+    plotting_dir);
 
 % truth_output = load('data/backproj_analysis/truth_output.mat');
 % truth_output = truth_output.output;
 % 
 % mse = mean(abs(truth_output.rx_signal_bp - output.rx_signal_bp), "all");
 
-%% save data
+% save data
 if save_data
     save(truth_data_dir, "output");
 end
 
-
+if save_plots
+    save_scenario_contents(sc, plotting_dir);
+end
 
 
 

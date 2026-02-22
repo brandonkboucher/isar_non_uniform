@@ -5,7 +5,8 @@ function plot_target_range_and_traj(...
     yaws, ...
     show_plots, ...
     save_plots, ...
-    filename)
+    include_title, ...
+    plotting_dir)
     
     % range and trajectory
     visible = 'off';
@@ -22,7 +23,9 @@ function plot_target_range_and_traj(...
     grid on
     ax = gca;
     set(ax,'FontSize',16)
-    %title('Target Range', 'FontSize', 24)
+    if include_title
+        title('Target Range', 'FontSize', 24)
+    end
     ax.YDir = "reverse";
     
     subplot(1,3,2)
@@ -47,8 +50,9 @@ function plot_target_range_and_traj(...
     axis square
     ax = gca;
     set(ax,'FontSize',16)
-    %title('Target Trajectory', 'FontSize', 24)
-    
+    if include_title
+        title('Target Trajectory', 'FontSize', 24)
+    end
     ax.YDir = "reverse";
 
     subplot(1,3,3)
@@ -60,11 +64,13 @@ function plot_target_range_and_traj(...
     axis square
     ax = gca;
     set(ax,'FontSize',16)
-    %title('Target Rotation', 'FontSize', 24)
+    if include_title
+        title('Target Rotation', 'FontSize', 24)
+    end
 
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots
-        saveas(f,['plots/range_and_trj', filename, '.png'])
+        saveas(f,[plotting_dir, '/range_and_trj.png'])
     end
 end
 

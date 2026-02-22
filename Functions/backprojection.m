@@ -69,8 +69,11 @@ function [rx_signal_bp, x_array, y_array] = ...
         end
         weights = weights ./ sum(weights);
 
+        fprintf('Performing weighted backprojection\n')
+
     else
         weights = ones(size(target.yaws,1),1);
+        fprintf('Performing standard backprojection\n')
 
     end
 
@@ -81,8 +84,6 @@ function [rx_signal_bp, x_array, y_array] = ...
     t = tic;
 
     % iterate through each pixel
-    fprintf('Performing backprojection\n')
-
     for ix = 1:Nx % cross range
         
         if mod(ix, round(Nx/10)) == 0

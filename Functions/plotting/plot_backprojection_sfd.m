@@ -4,7 +4,8 @@ function plot_backprojection_sfd(...
     ky, ...
     show_plots, ...
     save_plots, ...
-    filename)
+    include_title, ...
+    plotting_dir)
     
     visible = 'off';
     if show_plots
@@ -23,8 +24,10 @@ function plot_backprojection_sfd(...
     c1 = colorbar;
     c1.Label.String = 'Amplitude [dB]';   
     set(gca,'FontSize',16)
-    title('SFD image - Log scaled', 'FontSize', 24)
-    
+
+    if include_title
+        title('SFD image - Log scaled', 'FontSize', 24)
+    end
     
     subplot(1,2,2)
     imagesc(kx, ky, abs(rx_signal_sfd.'))
@@ -37,11 +40,14 @@ function plot_backprojection_sfd(...
     c2 = colorbar;
     c2.Label.String = 'Amplitude [Linear]';   
     set(gca,'FontSize',16)
-    title('SFD image', 'FontSize', 24)
-    
+
+    if include_title
+        title('SFD image', 'FontSize', 24)
+    end
+
     set(gcf, 'Position', get(0, 'Screensize'));
     if save_plots
-        saveas(f, ['plots/backproj_sfd_', filename, '.png'])
+        saveas(f, [plotting_dir, '/backproj_sfd.png'])
     end
 end
 

@@ -43,13 +43,19 @@ function [rx_signal, ranges, phases,scatterer_positions] =...
     
             % calculate the dealy
             delay = 2 * range / const.c; % [s]
-    
+            PRI = 1 / signal.prf;
+            delay = mod(delay, PRI);
+
             % define the reflectivity of the scatterer
             A = 1;
             
             % define the phase 
             phase = exp( -1j * 4 * pi * signal.fc * range / const.c);
             
+            % k = mod(floor(delay * signal.fs), signal.num_range_bins) + 1;
+            % rx_signal(ipulse,k) = ...
+            %     rx_signal(ipulse,k) + A * phase;
+
             % define the echo, equation 2 - not sure if this
             % should be normalized or unnormalized sinc
             scatterer_signal = ...
