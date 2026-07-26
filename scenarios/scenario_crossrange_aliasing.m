@@ -48,8 +48,8 @@ classdef scenario_crossrange_aliasing < handle
             %fc  = 10 * const.GHz2Hz; % [Hz] center frequency - X-band
             fc  = 1 * const.GHz2Hz; % [Hz] center frequency - X-band
             B   = 149.9 * const.MHz2Hz; % [Hz] bandwidth
-            % prf = 1 * const.kHz2Hz; % [Hz] pulse repetition frequency
-            prf = 10 * const.kHz2Hz; % [Hz] pulse repetition frequency
+            prf = 5; % [Hz] pulse repetition frequency
+            %prf = 10 * const.kHz2Hz; % [Hz] pulse repetition frequency
             fs  = 600 * const.MHz2Hz; % [Hz] sampling frequency
             % Tp  = 5 * const.us2s; % [s] pulse width
             Tp  = 10 * const.us2s; % [s] pulse width

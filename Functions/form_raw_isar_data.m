@@ -41,7 +41,7 @@ function [rx_signal, ranges, phases,scatterer_positions] =...
                 + target.target_center_position;
             range = norm(scatterer_absolute_position);
     
-            % calculate the dealy
+            % calculate the delay
             delay = 2 * range / const.c; % [s]
             PRI = 1 / signal.prf;
             delay = mod(delay, PRI);
