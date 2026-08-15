@@ -19,10 +19,15 @@ scenarios = readtable('documentation/scenarios.xlsx');
 delete('plots/*')
 
 options.calculate_mutual_coherence  = false;
-options.execute_itsa                = true;
+options.execute_itsa                = false;
 options.execute_omp                 = true;
+options.execute_nomp                = true;
 options.execute_sbl                 = false;
-options.execute_fbp                 = true;
+options.execute_bp                  = true;
+options.log_scale_plotting          = false;
+
+Rc = 1;
+Rs = 1;
 
 % use the linearized range model of Cheng et al. (2019) eq (1) throughout
 % (both the measurement atoms `as` and the reconstruction dictionary `a`);
@@ -177,7 +182,6 @@ for isc = 1:num_scenarios
 
     % round-robin so every requested ambiguity holds at least one scatterer
     amb_of_k = amb_index(mod(0:Ks-1, n_amb_scat) + 1).';
-    
 
     % define the target scatterer locations, in meters. Columns are
     % [crossrange, range] to match compute_atom's (x, y) argument order (as used
@@ -233,7 +237,7 @@ for isc = 1:num_scenarios
     end
     
     % compute dictionary for reconstruction
-    a = zeros(M*L,K);
+    A = zeros(M*L,K);
     tt = tic;
     for k = 1:K
         
@@ -254,12 +258,12 @@ for isc = 1:num_scenarios
     
         % the reconstruction dictionary (grid atoms) is A; the off-grid scatterer
         % atoms `as` are used only to synthesize the measurement below.
-        a(:,k) = ak;
+        A(:,k) = ak;
     end
     
     % print matrix dimensions and conditioning
-    fprintf(['A has dimension ', num2str(size(a,1)), ' by ', num2str(size(a,2)), '\n'])
-    fprintf(['A has a rank of ', num2str(rank(a)), '\n'])
+    fprintf(['A has dimension ', num2str(size(A,1)), ' by ', num2str(size(A,2)), '\n'])
+    fprintf(['A has a rank of ', num2str(rank(A)), '\n'])
     
     % calculate the measurement: superpose the exact phase histories of the
     % off-grid scatterers (each column of `as` is one scatterer's response).
@@ -270,15 +274,87 @@ for isc = 1:num_scenarios
     %% output
     if options.calculate_mutual_coherence
         mu_mat = calculate_mutual_coherence(...
-            a,...
+            A,...
             x_array,...
             y_array,...
             target_locations);
     end
 
-    % reconstruction
-    x_hat = reconstruct_latent_image(y, a, [Ny Nx], Ks,options);
-    
+     % filtered backprojection using pseudo-inverse
+    if isfield(options, 'execute_omp') ...
+        && options.execute_omp
+
+        x_hat_omp = omp_vec(...
+            y,...
+            A,...
+            Ks+2);
+        x_hat.omp.image = reshape(x_hat_omp,Ny,Nx);
+        
+        x_hat.omp.positions = extract_target_positions(...
+            x_hat.omp.image, ...
+            x_array, ...
+            y_array, ...
+            Ks, ...
+            'none');
+
+        x_hat.omp.error = calculate_reconstruction_error(...
+            target_locations, ...
+            x_hat.omp.positions);
+
+    end
+
+
+    % filtered backprojection using pseudo-inverse
+    if isfield(options, 'execute_bp') ...
+        && options.execute_bp
+
+        x_hat_bp = A'*y;
+        x_hat_bp = reshape(x_hat_bp,Ny,Nx);
+        x_hat.bp.image = x_hat_bp / norm(x_hat_bp, "fro");
+
+        if ~strcmpi(scenarios.ScattererLocations(isc), 'Off-grid')
+            interpolation_type = 'none';
+        else
+            interpolation_type = 'linear';
+        end
+
+        x_hat.bp.positions = extract_target_positions(...
+            x_hat.bp.image, ...
+            x_array, ...
+            y_array, ...
+            Ks, ...
+            interpolation_type);
+
+        x_hat.bp.error = calculate_reconstruction_error(...
+            target_locations, ...
+            x_hat.bp.positions);
+    end
+
+    if isfield(options, 'execute_nomp') ...
+            && options.execute_nomp
+
+        [alpha_hat, p_hat] = nomp_vec(...
+            y, ...
+            A, ...
+            Rs, ...
+            Rc, ...
+            Ks, ...
+            xk, ...
+            yk, ...
+            u0, ...
+            theta, ...
+            f_hat_l, ...
+            fc);
+
+        x_hat.nomp.positions = p_hat;
+        x_hat.nomp.alpha = alpha_hat;
+
+        x_hat.nomp.error = calculate_reconstruction_error(...
+            target_locations, ...
+            x_hat.nomp.positions);
+
+    end
+
     % plotting
     plot_reconstruction(...
         scenarios.Case_(isc), ...

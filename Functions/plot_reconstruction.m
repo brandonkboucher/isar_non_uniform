@@ -9,11 +9,34 @@ function plot_reconstruction(...
     options, ...
     super_title)
 
-    num_plots = ...
-        options.execute_itsa ...
-        + options.execute_omp ...
-        + options.execute_sbl ...
-        + options.execute_fbp;
+    num_plots = 0; 
+    font_size = 24;
+
+    if isfield(options, 'execute_itsa') ...
+            && options.execute_itsa
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_omp') ...
+            && options.execute_omp
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_nomp') ...
+            && options.execute_nomp
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_sbl') ...
+            && options.execute_sbl
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_bp') ...
+            && options.execute_bp
+        num_plots = num_plots + 1;
+    end
+
 
     % true (off-grid) scatterer positions in plot coordinates: crossrange on x,
     % range (offset by u0) on y. These continuous positions do not lie on grid
@@ -28,60 +51,137 @@ function plot_reconstruction(...
     f = figure('Visible','off');
     iplot = 1;
 
-    if options.execute_omp
+    if isfield(options, 'execute_nomp') ...
+            && options.execute_nomp
+
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
-        imagesc(x_array, y_array + u0, abs(x_hat.omp))
+
+        x_nomp = x_hat.nomp.positions(1,:);
+        y_nomp = x_hat.nomp.positions(2,:);
+        alpha = x_hat.nomp.alpha;
+
+        % helper to overlay the true positions on the current axes
+        plot(x_nomp, y_nomp + u0, '*', ...
+            'MarkerEdgeColor', [0 0 1], ...
+            'MarkerSize', 12, ...
+            'LineWidth', 1.5);
+
         axis square
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title('OMP reconstruction (o = true off-grid positions)', 'FontSize', 24)
-        set(gca, "FontSize",16)
+        title(sprintf('NOMP reconstruction (error: %.2e)', x_hat.nomp.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
+        xlim([min(x_array), max(x_array)])
+        ylim([min(y_array)+u0, max(y_array)+u0])
+        set(gca, 'YDir', 'reverse');
+        set(gca,'FontSize',font_size)
+    end
+
+    if isfield(options, 'execute_omp') ...
+            && options.execute_omp
+        subplot(1,num_plots,iplot)
+        iplot = iplot + 1;
+        if options.log_scale_plotting
+            imagesc(x_array, y_array + u0, 20*log10(abs(x_hat.omp.image)))
+        else
+            imagesc(x_array, y_array + u0, abs(x_hat.omp.image))
+        end
+        axis square
+        hold on; overlay_truth(); hold off
+        xlabel('crossrange [m]')
+        ylabel('range [m]')
+        title(sprintf('OMP reconstruction (error: %.2e)', x_hat.omp.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
         colormap gray
-        colorbar
+        c2 = colorbar;
+        if options.log_scale_plotting
+            c2.Label.String = 'Log-Scaled [dB]';
+        else
+            c2.Label.String = 'Amplitude [Linear]'; 
+        end
+        c2.FontSize = font_size;
+        set(gca,'FontSize',font_size)
     end
     
-    if options.execute_itsa
+    if isfield(options, 'execute_itsa') ...
+            && options.execute_itsa
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
-        imagesc(x_array, y_array + u0, abs(x_hat.lasso))
+        if options.log_scale_plotting
+            imagesc(x_array, y_array + u0, 20*log10(abs(x_hat.lasso.image)))
+        else
+            imagesc(x_array, y_array + u0, abs(x_hat.lasso.image))
+        end
         axis square
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title('LASSO (ISTA) reconstruction (o = true off-grid positions)', 'FontSize', 24)
-        set(gca, "FontSize",16)
+        title(sprintf('LASSO (ISTA) reconstruction (error: %.2e)', x_hat.lasso.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
         colormap gray
-        colorbar
+        c2 = colorbar;
+        if options.log_scale_plotting
+            c2.Label.String = 'Log-Scaled [dB]';
+        else
+            c2.Label.String = 'Amplitude [Linear]'; 
+        end
+        c2.FontSize = font_size;
+        set(gca,'FontSize',font_size)
     end
     
-    if options.execute_sbl
+    if isfield(options, 'execute_sbl') ...
+            && options.execute_sbl
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
-        imagesc(x_array, y_array + u0, abs(x_hat.sbl))
+        if options.log_scale_plotting
+            imagesc(x_array, y_array + u0, 20*log10(abs(x_hat.sbl.image)))
+        else
+            imagesc(x_array, y_array + u0, abs(x_hat.sbl.image))
+        end
         axis square
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title('EM-SBL reconstruction (o = true off-grid positions)', 'FontSize', 24)
-        set(gca, "FontSize",16)
+        title(sprintf('EM-SBL reconstruction (error: %.2e)', x_hat.sbl.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
         colormap gray
-        colorbar
+        c2 = colorbar;
+        if options.log_scale_plotting
+            c2.Label.String = 'Log-Scaled [dB]';
+        else
+            c2.Label.String = 'Amplitude [Linear]'; 
+        end 
+        c2.FontSize = font_size;
+        set(gca,'FontSize',font_size)
     end
     
-    if options.execute_fbp
+    if isfield(options, 'execute_bp') ...
+            && options.execute_bp
+
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
-        imagesc(x_array, y_array + u0, abs(x_hat.fbp))
+        if options.log_scale_plotting
+            imagesc(x_array, y_array + u0, 20*log10(abs(x_hat.bp.image)))
+        else
+            imagesc(x_array, y_array + u0, abs(x_hat.bp.image))
+        end
         axis square
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title('BP reconstruction (o = true off-grid positions)', 'FontSize', 24)
-        set(gca, "FontSize",16)
+        title(sprintf('BP reconstruction (error: %.2e)', x_hat.bp.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
         colormap gray
-        colorbar
+        c2 = colorbar;
+        if options.log_scale_plotting
+            c2.Label.String = 'Log-Scaled [dB]';
+        else
+            c2.Label.String = 'Amplitude [Linear]'; 
+        end
+        c2.FontSize = font_size;
+        set(gca,'FontSize',font_size)
     end
     sgtitle(super_title, 'FontSize', 40);
     set(gcf, 'Position', get(0, 'Screensize'));

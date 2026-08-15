@@ -29,9 +29,10 @@ function x_hat = reconstruct_latent_image(...
     end
 
     % filtered backprojection using pseudo-inverse
-    if options.execute_fbp
+    if options.execute_bp
         x_hat_bp = a'*y;
-        x_hat.fbp = reshape(x_hat_bp,Ny,Nx);
+        x_hat.bp = reshape(x_hat_bp,Ny,Nx);
+        x_hat.pb = x_hat.pb / norm(x_hat.bp, "fro");
     end
 
 end

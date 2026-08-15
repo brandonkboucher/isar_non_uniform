@@ -1,7 +1,6 @@
 function x_hat = omp_vec( ...
     y, ... % the measurement \in \mathbb{C}^{M}
     A, ... % the forward operator function
-    ~, ... % (was N) grid size; unused -- pixel count is taken from size(A,2)
     K ... % Sparsity
     )
 
