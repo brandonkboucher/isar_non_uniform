@@ -37,7 +37,6 @@ function plot_reconstruction(...
         num_plots = num_plots + 1;
     end
 
-
     % true (off-grid) scatterer positions in plot coordinates: crossrange on x,
     % range (offset by u0) on y. These continuous positions do not lie on grid
     % points, so they are overlaid as markers rather than shown as an image.
@@ -57,8 +56,8 @@ function plot_reconstruction(...
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
 
-        x_nomp = x_hat.nomp.positions(1,:);
-        y_nomp = x_hat.nomp.positions(2,:);
+        x_nomp = x_hat.nomp.positions(:,1);
+        y_nomp = x_hat.nomp.positions(:,2);
         alpha = x_hat.nomp.alpha;
 
         % helper to overlay the true positions on the current axes
@@ -81,6 +80,7 @@ function plot_reconstruction(...
 
     if isfield(options, 'execute_omp') ...
             && options.execute_omp
+
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
         if options.log_scale_plotting
@@ -171,7 +171,7 @@ function plot_reconstruction(...
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title(sprintf('BP reconstruction (error: %.2e)', x_hat.bp.error), 'FontSize', 24)
+        title(sprintf('BP normalized reconstruction (error: %.2e)', x_hat.bp.error), 'FontSize', 24)
         set(gca, "FontSize",font_size)
         colormap gray
         c2 = colorbar;

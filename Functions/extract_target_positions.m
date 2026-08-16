@@ -82,8 +82,6 @@ function pos = extract_target_positions(...
             pos(iscatterer, :) = [xpos, ypos];
 
         end
-        
-
     end
 end
 

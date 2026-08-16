@@ -1,9 +1,7 @@
-function err = calculate_reconstruction_error(...
+function [err,pairs,missed,false_alarms,d] = calculate_reconstruction_error(...
     true_locations, ...
     estimated_locations ...
     )
-
-    fprintf('Calculating error.\n')
 
     % number of scatterers
     K = size(true_locations, 1);
@@ -21,14 +19,14 @@ function err = calculate_reconstruction_error(...
 
     end
 
-    % squared l2-norm
-    C = pdist2(true_locations, estimated_locations, "squaredeuclidean");
+    % euclidean distance matrix, cost matrix
+    C = pdist2(true_locations, estimated_locations, "euclidean");
 
     % find the matches using MATLAB's matchpairs function
-    M = matchpairs(C, 1e10);
+    [pairs, missed, false_alarms] = matchpairs(C, 1e10);
 
     % calculate the total error 
-    err = sum(C(sub2ind(size(C), M(:,1), M(:,2))));
-
+    d = C(sub2ind(size(C), pairs(:,1), pairs(:,2)));
+    err = sqrt(mean(d.^2));
 end
 

@@ -49,7 +49,7 @@ function [alpha_hat, p_hat] = nomp_vec( ...
 
         % perform Newton's method for optimization
         p_hat(:,iatom) = newton_method(...
-            r, x0, y0, u0, theta_m, f_hat_l, fc, Rs);
+            r, x0, y0, u0, theta_m, f_hat_l, fc, Rs, false);
 
         % build the dictionary        
         AS = build_AS(...
@@ -80,7 +80,7 @@ function [alpha_hat, p_hat] = nomp_vec( ...
     
                 % perform Newton's method for optimization
                 p_hat(:,jatom) = newton_method(...
-                    rj, x0, y0, u0, theta_m, f_hat_l, fc, Rs);
+                    rj, x0, y0, u0, theta_m, f_hat_l, fc, Rs, false);
     
             end
 

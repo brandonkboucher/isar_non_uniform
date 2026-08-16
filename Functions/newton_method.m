@@ -1,5 +1,5 @@
 function p_hat = newton_method(...
-    r, x, y, u0, theta_m, f_hat_l, fc, Ns)
+    r, x, y, u0, theta_m, f_hat_l, fc, Ns,print_atom_acceptance)
     
     const = Constants;
     c = const.c;
@@ -23,9 +23,15 @@ function p_hat = newton_method(...
 
         % determine the derivatives of the atom:
         % da/dx = -1j*\gamma*theta_m*a(x,y)
+        % compute_atom fills an [M x L] array and reshapes it column-major, so
+        % entry i of the vectorized atom is pulse m = mod(i-1,M)+1 and range
+        % frequency l = floor((i-1)/M)+1. gamma must therefore be held constant
+        % across each block of M entries (repelem), while theta cycles with
+        % period M (repmat). Using repmat for both silently transposes the
+        % range-frequency axis whenever M == L.
         gamma = -1j * 4 * pi * (fc + f_hat_l) / c;
         gamma = gamma(:);
-        gamma = repmat(gamma, M, 1); % [ML x 1]
+        gamma = repelem(gamma, M, 1); % [ML x 1]
 
         % determine the derivative of r wrt position
         theta = repmat(theta_m, L, 1); % [ML x 1]
@@ -71,9 +77,13 @@ function p_hat = newton_method(...
 
             p_hat = [x; y];
             G_old = G_new;
-            fprintf('new atom accepted.\n')
+            if print_atom_acceptance
+                fprintf('new atom accepted.\n')
+            end
         else
-            fprintf('new atom not accepted.\n')
+            if print_atom_acceptance
+                fprintf('new atom not accepted.\n')
+            end
             break
         end
 

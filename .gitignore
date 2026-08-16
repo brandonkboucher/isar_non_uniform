@@ -3,6 +3,7 @@
 **/data
 **/dev
 **/.DS_Store
+**/results
 functions/archive
 classes/Targets/archive
 scenarios/archive
