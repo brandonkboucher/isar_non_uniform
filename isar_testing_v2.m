@@ -28,6 +28,7 @@ options.log_scale_plotting          = true;
 options.save_results                = true;
 options.save_plots                  = true;
 
+
 if options.save_plots
     delete('plots/*')
 end
@@ -43,6 +44,15 @@ results_file = 'results/simulation_results.xlsx';
 % (both the measurement atoms `as` and the reconstruction dictionary `a`);
 % false = exact range geometry. See compute_atom.m.
 use_range_approx            = false;
+
+% -------------------------------------------
+% ---------------- testing ------------------
+% -------------------------------------------
+manual_close_spacing = true;
+manual_maneuvering_target = true;
+% -------------------------------------------
+% -------------------------------------------
+
 
 %% radar parameters
 
@@ -117,20 +127,29 @@ for isc = 1:num_scenarios
 
     %% target definition
     % Define the target's motion
-    w0 = pi; % [rad/s] yawing rate
-    if strcmp(scenarios.AngleRate(isc),'Accelerating')
-        w1 = 1e3; % [rad/s/s] yawing acceleration
-        w2 = 1e3;    % [rad/s/s] yawing jerk
+    if manual_maneuvering_target ...
+            && strcmp(scenarios.AngleRate(isc),'Accelerating')
+
+        w0 = pi; w1 = 1e3; w2 = 1e3; jerk_mag = 5*pi;
+        theta = create_complex_target_trajectory(...
+            w0, w1, w2, jerk_mag, t_m);
+
     else
-        w1 = 0; % [rad/s/s] yawing acceleration
-        w2 = 0;    % [rad/s/s] yawing jerk
+        w0 = pi; % [rad/s] yawing rate
+        if strcmp(scenarios.AngleRate(isc),'Accelerating')
+            w1 = 1e3; % [rad/s/s] yawing acceleration
+            w2 = 1e3;    % [rad/s/s] yawing jerk
+        else
+            w1 = 0; % [rad/s/s] yawing acceleration
+            w2 = 0;    % [rad/s/s] yawing jerk
+        end
+    
+        
+        % determine the targets rotation as a function of slow time
+        theta = w0 * t_m ...
+            + (1/2) * w1 * t_m .* t_m ...
+            + (1/3) * w2 * t_m .* t_m .* t_m;
     end
-
-    % determine the targets rotation as a function of slow time
-    theta = w0 * t_m ...
-        + (1/2) * w1 * t_m .* t_m ...
-        + (1/3) * w2 * t_m .* t_m .* t_m;
-
     % determine the angular span which determines the cross
     % range resolution
     sin_span = max(sin(theta)) - min(sin(theta));
@@ -140,10 +159,10 @@ for isc = 1:num_scenarios
     % define the crossrange unambiguous extent, this is the extent at which the 
     % crossrange is unambiguous. if a scatterer's crossrange exceeds this extent
     % then it is ambiguous
-    W_x = c * prf / (2 * fc * w0);
+    Wx = c * prf / (2 * fc * w0);
 
     % determine the number of pixels within the crossrange unambiguous extent
-    n_pix_per_amb = round(W_x / cross_range_resolution);
+    n_pix_per_amb = round(Wx / cross_range_resolution);
 
     % extract the number of ambiguous scatterers 
     n_amb_scat = scenarios.NumberOfAmbiguitiesHavingScatterers(isc);
@@ -193,18 +212,37 @@ for isc = 1:num_scenarios
     % of ambiguities is 1 -> [0], if 3 -> [-1,0,1], etc
     ii        = 0:(n_amb_scat-1);
     amb_index = ceil(ii/2) .* (-1).^ii;
+    amb_index = sort(amb_index);
 
-    % round-robin so every requested ambiguity holds at least one scatterer
-    amb_of_k = amb_index(mod(0:Ks-1, n_amb_scat) + 1).';
+    if ((isfield(scenarios, "TargetSpacing") ...
+            && strcmpi(scenarios.TargetSpacing(isc), 'close')) ...
+            || manual_close_spacing) ...
+            && strcmpi(scenarios.ScattererLocations(isc), 'Off-grid')
+        try
+        [target_locations, amb_of_k] = create_closely_spaced_target_scatterers(...
+            Ks, ...
+            amb_index, ...
+            Wx, ...
+            max(y_array) - min(y_array), ...
+            cross_range_pixel_res);
+        catch
+        end
 
-    % define the target scatterer locations, in meters. Columns are
-    % [crossrange, range] to match compute_atom's (x, y) argument order (as used
-    % for xk, yk below). Crossrange is uniform within the scatterer's own
-    % ambiguity; range is uniform over the grid extent (range has no ambiguity
-    % structure here -- it is set by bandwidth, not by the PRF).
-    target_locations = [ ...
-        amb_of_k * W_x + (rand(Ks,1) - 0.5) * W_x, ...
-        (rand(Ks,1) - 0.5) * (y_array(end) - y_array(1)) ];
+    else
+
+        % round-robin so every requested ambiguity holds at least one scatterer
+        amb_of_k = amb_index(mod(0:Ks-1, n_amb_scat) + 1).';
+    
+        % define the target scatterer locations, in meters. Columns are
+        % [crossrange, range] to match compute_atom's (x, y) argument order (as used
+        % for xk, yk below). Crossrange is uniform within the scatterer's own
+        % ambiguity; range is uniform over the grid extent (range has no ambiguity
+        % structure here -- it is set by bandwidth, not by the PRF).
+
+        target_locations = [ ...
+            amb_of_k * Wx + (rand(Ks,1) - 0.5) * Wx, ...
+            (rand(Ks,1) - 0.5) * (y_array(end) - y_array(1)) ];
+    end
 
     % On-Grid rows additionally snap onto the critically-sampled grid. The
     % ambiguity assignment above already happened, so on-grid scatterers are
@@ -224,16 +262,17 @@ for isc = 1:num_scenarios
     jj               = 0:(n_amb_if-1);
     amb_if           = ceil(jj/2) .* (-1).^jj;
     is_latent        = ismember(amb_of_k, amb_if);
-    Ks_latent        = sum(is_latent);
+    % Ks_latent        = sum(is_latent);
+    Ks_latent        = Ks;
     latent_locations = target_locations(is_latent, :);
 
     % determine if Doppler aliasing will occur
     theta_dot = w0 + w1*t_m + w2*t_m.^2;
     fd_max = max((2*fc/c) * abs(target_locations(:,1)) * max(abs(theta_dot)));
     fprintf('W_x = %.3f m (%d critical pixels); scatterers in ambiguities %s (requested %d)\n', ...
-        W_x, n_pix_per_amb, mat2str(unique(amb_of_k).'), n_amb_scat);
+        Wx, n_pix_per_amb, mat2str(unique(amb_of_k).'), n_amb_scat);
     fprintf('image former spans %.2f ambiguities (requested %d), covering %s\n', ...
-        Nx*cross_range_pixel_res/W_x, n_amb_if, mat2str(sort(amb_if)));
+        Nx*cross_range_pixel_res/Wx, n_amb_if, mat2str(sort(amb_if)));
     fprintf('%d of %d scatterers are representable in the latent image; %d act as interference\n', ...
         Ks_latent, Ks, Ks - Ks_latent);
     if fd_max > prf/2
@@ -310,7 +349,7 @@ for isc = 1:num_scenarios
         x_hat_omp = omp_vec(...
             y,...
             A,...
-            Ks_latent+2);
+            Ks_latent);
         x_hat.omp.image = reshape(x_hat_omp,Ny,Nx);
 
         x_hat.omp.positions =...
@@ -401,7 +440,7 @@ for isc = 1:num_scenarios
         % record this scenario's configuration and error metrics. the file is
         % rewritten on every iteration so partial results survive an interrupt.
         sim_config = struct( ...
-            'W_x_m',                W_x, ...
+            'W_x_m',                Wx, ...
             'PixelsPerAmbiguity',   n_pix_per_amb, ...
             'Nx',                   Nx, ...
             'Ny',                   Ny, ...

@@ -14,3 +14,8 @@ videos
 *.log
 *.synctex.gz
 *.pdf
+*.bbl
+*.png
+*bcf
+*.blg
+*.xml
