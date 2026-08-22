@@ -8,3 +8,9 @@ functions/archive
 classes/Targets/archive
 scenarios/archive
 videos
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.pdf

@@ -88,36 +88,20 @@ function results = write_results_spreadsheet(...
         res = x_hat.(field);
 
         % prediction belonging to this algorithm, when the matrix has one
-        prediction = '';
-        if ismember('ImageFormationAlgorithm', scenario_rows.Properties.VariableNames) ...
-                && ismember('Prediction', scenario_rows.Properties.VariableNames)
-            for irow = 1:height(scenario_rows)
-                alg_here = scalar_value(scenario_rows.ImageFormationAlgorithm(irow));
-                if strcmpi(alg_here, matrix_label)
-                    prediction = scalar_value(scenario_rows.Prediction(irow));
-                    break
-                end
-            end
-        end
-        row.([prefix '_Prediction']) = prediction;
+        % prediction = '';
+        % if ismember('ImageFormationAlgorithm', scenario_rows.Properties.VariableNames) ...
+        %         && ismember('Prediction', scenario_rows.Properties.VariableNames)
+        %     for irow = 1:height(scenario_rows)
+        %         alg_here = scalar_value(scenario_rows.ImageFormationAlgorithm(irow));
+        %         if strcmpi(alg_here, matrix_label)
+        %             prediction = scalar_value(scenario_rows.Prediction(irow));
+        %             break
+        %         end
+        %     end
+        % end
+        % row.([prefix '_Prediction']) = prediction;
 
         row.([prefix '_Error']) = res.error;
-
-        if isfield(res, 'pairs')
-            row.([prefix '_NumMatched']) = size(res.pairs, 1);
-        else
-            row.([prefix '_NumMatched']) = NaN;
-        end
-        if isfield(res, 'missed')
-            row.([prefix '_NumMissed']) = numel(res.missed);
-        else
-            row.([prefix '_NumMissed']) = NaN;
-        end
-        if isfield(res, 'false_alarms')
-            row.([prefix '_NumFalseAlarms']) = numel(res.false_alarms);
-        else
-            row.([prefix '_NumFalseAlarms']) = NaN;
-        end
     end
 
     results{end+1} = row;
