@@ -131,8 +131,8 @@ for isc = 1:num_scenarios
             && strcmp(scenarios.AngleRate(isc),'Accelerating')
 
         w0 = pi; w1 = 1e3; w2 = 1e3; jerk_mag = 5*pi;
-        theta = create_complex_target_trajectory(...
-            w0, w1, w2, jerk_mag, t_m);
+        [theta, w0, w1, w2] = create_complex_target_trajectory(...
+            0, w0, w1, w2, t_m);
 
     else
         w0 = pi; % [rad/s] yawing rate
@@ -218,15 +218,13 @@ for isc = 1:num_scenarios
             && strcmpi(scenarios.TargetSpacing(isc), 'close')) ...
             || manual_close_spacing) ...
             && strcmpi(scenarios.ScattererLocations(isc), 'Off-grid')
-        try
+
         [target_locations, amb_of_k] = create_closely_spaced_target_scatterers(...
             Ks, ...
             amb_index, ...
             Wx, ...
             max(y_array) - min(y_array), ...
             cross_range_pixel_res);
-        catch
-        end
 
     else
 
@@ -267,7 +265,13 @@ for isc = 1:num_scenarios
     latent_locations = target_locations(is_latent, :);
 
     % determine if Doppler aliasing will occur
-    theta_dot = w0 + w1*t_m + w2*t_m.^2;
+    if manual_maneuvering_target ...
+            && strcmp(scenarios.AngleRate(isc),'Accelerating')
+        theta_dot = w0 + w1.*t_m + w2.*t_m.^2;
+    else
+        theta_dot = w0;
+    end
+
     fd_max = max((2*fc/c) * abs(target_locations(:,1)) * max(abs(theta_dot)));
     fprintf('W_x = %.3f m (%d critical pixels); scatterers in ambiguities %s (requested %d)\n', ...
         Wx, n_pix_per_amb, mat2str(unique(amb_of_k).'), n_amb_scat);

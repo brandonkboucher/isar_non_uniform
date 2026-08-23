@@ -16,7 +16,7 @@ function a = compute_atom(...
     %                     r^2/(2*R0) cross-range term). This is the
     %                     approximation under which the (f,beta) chirp
     %                     model and the off-grid OMP of that paper hold.
-    if nargin < 8 || isempty(use_range_approx)
+    if nargin < 7 || isempty(use_range_approx)
         use_range_approx = false;
     end
 

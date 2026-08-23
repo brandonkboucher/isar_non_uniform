@@ -19,8 +19,12 @@ function [err,pairs,missed,false_alarms,d] = calculate_reconstruction_error(...
 
     end
 
-    % euclidean distance matrix, cost matrix
-    C = pdist2(true_locations, estimated_locations, "euclidean");
+    % euclidean distance matrix, cost matrix. computed directly rather than
+    % with pdist2 so that scoring does not depend on the Statistics toolbox
+    % being licensed.
+    dx = true_locations(:,1) - estimated_locations(:,1).';
+    dy = true_locations(:,2) - estimated_locations(:,2).';
+    C = sqrt(dx.^2 + dy.^2);
 
     % find the matches using MATLAB's matchpairs function
     [pairs, missed, false_alarms] = matchpairs(C, 1e10);
