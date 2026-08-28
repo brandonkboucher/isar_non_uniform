@@ -1,8 +1,8 @@
-function a = compute_atom(...
+function [a, phase, dadx, dady, d2adx2, d2ady2, d2adxdy] = compute_atom(...
     x, ...
     y, ...
     u0, ...
-    thetas,...
+    theta_m,...
     f_hat_l, ...
     fc, ...
     use_range_approx)   % optional; false (default) = exact range
@@ -25,14 +25,15 @@ function a = compute_atom(...
     c = const.c;
 
     % define the dimensions of the sensing matrix
-    M = size(thetas, 1);
+    M = size(theta_m, 1);
     L = size(f_hat_l, 2);
     a = zeros(M,L);
+    phase = zeros(M,L);
 
     for m = 1:M
 
         % define the rotation matrix
-        theta = thetas(m);
+        theta = theta_m(m);
         R = [cos(theta), -sin(theta); ...
                  sin(theta), cos(theta)];
     
@@ -56,11 +57,33 @@ function a = compute_atom(...
             f_hat = f_hat_l(l);
             
             % form the sensing matrix
-            a(m,l) = exp(-1j * 2 * pi  * (fc + f_hat) * tau_k);
+            phase(m,l) = -2 * pi  * (fc + f_hat) * tau_k;
+            a(m,l) = exp(1j * phase(m,l));
         end
     end
 
     % reshape the sensing matrix to a vector
     a = reshape(a, [], 1); % M*L x 1
+    phase = reshape(phase, [], 1); % M*L x 1
+
+    % calculate atom derivatives for newton's method and Gauss-Newton
+    gamma = -1j * 4 * pi * (fc + f_hat_l) / c;
+    gamma = gamma(:);
+    gamma = repelem(gamma, M, 1); % [ML x 1]
+
+    % determine the derivative of r wrt position
+    theta = repmat(theta_m, L, 1); % [ML x 1]
+    drdx = sin(theta);
+    drdy = cos(theta);
+    d2rdx2 = drdx .* drdx;
+    d2rdy2 = drdy .* drdy;
+    d2rdxdy = sin(theta) .* cos(theta);
+
+    dadx =      gamma       .* drdx     .* a; % [ML x 1]
+    dady =      gamma       .* drdy     .* a; % [ML x 1]
+    d2adx2 =    gamma.^2    .* d2rdx2   .* a; % [ML x 1]
+    d2ady2 =    gamma.^2    .* d2rdy2   .* a; % [ML x 1]
+    d2adxdy =   gamma.^2    .* d2rdxdy  .* a; % [ML x 1]
+
 end
 

@@ -270,12 +270,25 @@ function out = isar_run_scenario(cfg, opts)
             calculate_reconstruction_error(latent_locations, x_hat.nomp.positions);
     end
 
+    if opts.execute_promp
+        progress_fcn(0.88, 'running PROMP');
+        [alpha_hat, p_hat] = promp_vec(y, A, opts.Rs, opts.Rc, Ks_latent, ...
+            xk, yk, u0, theta, f_hat_l, fc);
+
+        x_hat.promp.positions = p_hat.';
+        x_hat.promp.alpha = alpha_hat;
+
+        [x_hat.promp.error, x_hat.promp.pairs, x_hat.promp.missed, ...
+            x_hat.promp.false_alarms, x_hat.promp.d] = ...
+            calculate_reconstruction_error(latent_locations, x_hat.promp.positions);
+    end
+
     progress_fcn(0.98, 'collecting results');
 
     % summarize the reconstruction error for each algorithm that ran
     log_fcn(' ');
     log_fcn('  algorithm   RMS position error [m]');
-    for alg = ["omp" "nomp" "bp"]
+    for alg = ["omp" "nomp" "promp" "bp"]
         if isfield(x_hat, alg) && isfield(x_hat.(alg), 'error')
             log_fcn(sprintf('  %-10s  %.4f', alg, x_hat.(alg).error));
         end

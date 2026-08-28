@@ -124,12 +124,13 @@ function isar_gui()
     function build_algorithm_panel(parent)
 
         p = uipanel(parent, 'Title', 'Image formation');
-        g = uigridlayout(p, [3 1]);
-        g.RowHeight = repmat({24}, 1, 3);
+        g = uigridlayout(p, [4 1]);
+        g.RowHeight = repmat({24}, 1, 4);
 
-        S.ompCheck  = uicheckbox(g, 'Text', 'OMP',            'Value', true);
-        S.nompCheck = uicheckbox(g, 'Text', 'NOMP',           'Value', true);
-        S.bpCheck   = uicheckbox(g, 'Text', 'Backprojection', 'Value', true);
+        S.ompCheck   = uicheckbox(g, 'Text', 'OMP',            'Value', true);
+        S.nompCheck  = uicheckbox(g, 'Text', 'NOMP',           'Value', true);
+        S.prompCheck = uicheckbox(g, 'Text', 'PROMP',          'Value', true);
+        S.bpCheck    = uicheckbox(g, 'Text', 'Backprojection', 'Value', true);
     end
 
     function build_advanced_panel(parent)
@@ -152,7 +153,7 @@ function isar_gui()
         add_num(g, 'w0',                  'Yaw rate w0 [rad/s]',        pi);
         add_num(g, 'w1',                  'Yaw accel w1 [rad/s^2]',    1e3);
         add_num(g, 'w2',                  'Yaw jerk w2 [rad/s^3]',     1e3);
-        add_num(g, 'Rs',                  'NOMP Newton steps Rs',        4);
+        add_num(g, 'Rs',                  'Newton/GN steps Rs',          4);
         add_num(g, 'Rc',                  'NOMP cyclic refinements Rc',  2);
         add_num(g, 'seed',                'RNG seed',                    0);
 
@@ -410,6 +411,7 @@ function isar_gui()
         opts = struct( ...
             'execute_omp',         S.ompCheck.Value, ...
             'execute_nomp',        S.nompCheck.Value, ...
+            'execute_promp',       S.prompCheck.Value, ...
             'execute_bp',          S.bpCheck.Value, ...
             'Ks',                  n.Ks.Value, ...
             'oversampling_factor', n.oversampling_factor.Value, ...
@@ -593,7 +595,7 @@ function isar_gui()
         % errors lead so a Critical vs Oversampled comparison is readable
         % without scrolling the table sideways
         row = { size(S.history, 1) + 1, ...
-            err('omp'), err('nomp'), err('bp'), ...
+            err('omp'), err('nomp'), err('promp'), err('bp'), ...
             out.cfg.NumberOfAmbiguitiesHavingScatterers, ...
             out.cfg.NumberOfAmbiguitiesInImageFormer, ...
             out.cfg.ScattererLocations, ...
@@ -677,7 +679,7 @@ function algs = present_algorithms(x_hat)
 % PRESENT_ALGORITHMS  Which algorithms produced a scored result.
 
     algs = {};
-    for a = {'omp', 'nomp', 'bp'}
+    for a = {'omp', 'nomp', 'promp', 'bp'}
         if is_scored(x_hat, a{1})
             algs{end+1} = a{1}; %#ok<AGROW>
         end
@@ -707,6 +709,10 @@ function panels = result_panels(x_hat)
         panels(end+1, :) = {'nomp', 'positions'};
     end
 
+    if is_scored(x_hat, 'promp')
+        panels(end+1, :) = {'promp', 'positions'};
+    end
+
     if is_scored(x_hat, 'bp')
         panels(end+1, :) = {'bp', 'image'};
     end
@@ -726,7 +732,7 @@ function e = pick_error(x_hat, alg, algs)
 end
 
 function cols = history_columns()
-    cols = {'Run', 'RMS_OMP_m', 'RMS_NOMP_m', 'RMS_BP_m', ...
+    cols = {'Run', 'RMS_OMP_m', 'RMS_NOMP_m', 'RMS_PROMP_m', 'RMS_BP_m', ...
         'AmbWithScatterers', 'AmbInImageFormer', 'ScattererLocations', ...
         'GridDensity', 'AngleRate', 'Noise', 'TargetSpacing', ...
         'Nx', 'Ny', 'CrossRangePixelRes_m', 'RangePixelRes_m', ...

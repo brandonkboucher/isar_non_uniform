@@ -27,6 +27,11 @@ function plot_reconstruction(...
         num_plots = num_plots + 1;
     end
 
+    if isfield(options, 'execute_promp') ...
+            && options.execute_promp
+        num_plots = num_plots + 1;
+    end
+
     if isfield(options, 'execute_sbl') ...
             && options.execute_sbl
         num_plots = num_plots + 1;
@@ -71,6 +76,34 @@ function plot_reconstruction(...
         xlabel('crossrange [m]')
         ylabel('range [m]')
         title(sprintf('NOMP reconstruction (error: %.2e)', x_hat.nomp.error), 'FontSize', 24)
+        set(gca, "FontSize",font_size)
+        xlim([min(x_array), max(x_array)])
+        ylim([min(y_array)+u0, max(y_array)+u0])
+        set(gca, 'YDir', 'reverse');
+        set(gca,'FontSize',font_size)
+    end
+
+    if isfield(options, 'execute_promp') ...
+            && options.execute_promp
+
+        subplot(1,num_plots,iplot)
+        iplot = iplot + 1;
+
+        x_promp = x_hat.promp.positions(:,1);
+        y_promp = x_hat.promp.positions(:,2);
+        alpha = x_hat.promp.alpha;
+
+        % helper to overlay the true positions on the current axes
+        plot(x_promp, y_promp + u0, '*', ...
+            'MarkerEdgeColor', [0 0.5 0], ...
+            'MarkerSize', 12, ...
+            'LineWidth', 1.5);
+
+        axis square
+        hold on; overlay_truth(); hold off
+        xlabel('crossrange [m]')
+        ylabel('range [m]')
+        title(sprintf('PROMP reconstruction (error: %.2e)', x_hat.promp.error), 'FontSize', 24)
         set(gca, "FontSize",font_size)
         xlim([min(x_array), max(x_array)])
         ylim([min(y_array)+u0, max(y_array)+u0])
