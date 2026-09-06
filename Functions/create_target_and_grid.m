@@ -65,13 +65,12 @@ function [sc,target_locations, ...
             + (1/3) * w2 * t_m .* t_m .* t_m;
     end
 
-    % determine the angular span which determines the cross
-    % range resolution
-    sin_span = max(sin(theta)) - min(sin(theta));
-    cross_range_resolution = const.c ...
-        / (2 * (fc + max(f_hat_l)) * sin_span);
-    range_resolution = ...
-        const.c / (2 * (max(f_hat_l) - min(f_hat_l))); % [m]
+    [range_resolution,cross_range_resolution] = ...
+    calculate_resolution(...
+        theta, ...      % [M x 1] yawing angle as function of slow-time
+        f_hat_l, ...    % [L x 1] range-frequency
+        fc...           % (Hz) center frequency
+        );
 
     % define the crossrange unambiguous extent, this is the extent at which the 
     % crossrange is unambiguous. if a scatterer's crossrange exceeds this extent

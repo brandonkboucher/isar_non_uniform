@@ -143,26 +143,40 @@ function isar_gui()
     function build_algorithm_panel(parent)
 
         p = uipanel(parent, 'Title', 'Image formation');
-        g = uigridlayout(p, [5 1]);
-        g.RowHeight = repmat({24}, 1, 5);
+        g = uigridlayout(p, [6 2]);
+        g.RowHeight   = repmat({24}, 1, 6);
+        g.ColumnWidth = {'1x', 90};
+
+        % Each algorithm may be given its own number of ambiguities in the
+        % image former: 'scenario' inherits the value from the Scenario panel,
+        % and an explicit number overrides it. That is what lets mod-OMP be
+        % scored on a one-block dictionary against an OMP handed three.
+        uilabel(g, 'Text', 'Algorithm', 'FontWeight', 'bold');
+        uilabel(g, 'Text', '# amb.',    'FontWeight', 'bold');
 
         S.ompCheck    = uicheckbox(g, 'Text', 'OMP',            'Value', true);
+        S.ambIfAlg.omp     = amb_if_dropdown(g);
         S.modOmpCheck = uicheckbox(g, 'Text', 'Modified OMP',   'Value', true);
+        S.ambIfAlg.mod_omp = amb_if_dropdown(g);
         S.nompCheck   = uicheckbox(g, 'Text', 'NOMP',           'Value', true);
+        S.ambIfAlg.nomp    = amb_if_dropdown(g);
         S.prompCheck  = uicheckbox(g, 'Text', 'PROMP',          'Value', true);
+        S.ambIfAlg.promp   = amb_if_dropdown(g);
         S.bpCheck     = uicheckbox(g, 'Text', 'Backprojection', 'Value', true);
+        S.ambIfAlg.bp      = amb_if_dropdown(g);
     end
 
     function build_advanced_panel(parent)
 
         p = uipanel(parent, 'Title', 'Radar, target and solver');
-        g = uigridlayout(p, [21 2]);
+        g = uigridlayout(p, [25 2]);
         g.ColumnWidth = {170, '1x'};
-        g.RowHeight   = repmat({26}, 1, 21);
+        g.RowHeight   = repmat({26}, 1, 25);
 
         S.numFields = struct();
 
         add_num(g, 'Ks',                  'Number of scatterers',        2);
+        add_num(g, 'target_magnitude',    'Scatterer magnitude',         5);
         add_num(g, 'oversampling_factor', 'Oversampling factor',         4);
         add_num(g, 'N_critical',          'Critical range pixels',      15);
         add_num(g, 'Nd',                  'Phase-history dimension',    16);
@@ -175,12 +189,22 @@ function isar_gui()
         add_num(g, 'w2',                  'Yaw jerk w2 [rad/s^3]',       0);
         add_num(g, 'Rs',                  'Newton/GN steps Rs',          4);
         add_num(g, 'Rc',                  'NOMP cyclic refinements Rc',  2);
+        uilabel(g, 'Text', 'Mod-OMP refinement');
+        S.optMethodDrop = uidropdown(g, ...
+            'Items', {'newtons', 'offset', 'newtons_and_offset'}, ...
+            'Value', 'newtons', 'ValueChangedFcn', @(~,~) sync_enable());
+
         add_num(g, 'amb_refine_pixels',   'Mod-OMP search [pixels]',     5);
+        add_num(g, 'num_offsets_pixels',  'Newton seeds [pixels]',      10);
         add_num(g, 'seed',                'RNG seed',                    0);
 
         uilabel(g, 'Text', 'Maneuvering trajectory');
         S.maneuverCheck = uicheckbox(g, 'Text', 'when accelerating', ...
             'Value', false, 'ValueChangedFcn', @(~,~) render_trajectory());
+
+        uilabel(g, 'Text', 'Stop at noise level');
+        S.residualStopCheck = uicheckbox(g, 'Text', 'residual stopping', ...
+            'Value', false);
 
         uilabel(g, 'Text', 'Report rank(A)');
         S.rankCheck = uicheckbox(g, 'Text', 'slow for dense grids', 'Value', false);
@@ -195,6 +219,12 @@ function isar_gui()
         S.histCheck = uicheckbox(g, 'Text', 'record refinement steps', 'Value', true);
 
         add_num(g, 'save_atom_idx',       'Traced atom index',           1);
+    end
+
+    function d = amb_if_dropdown(g)
+    % One per algorithm. 0 means "inherit the scenario value".
+        d = uidropdown(g, 'Items', {'scenario', '1', '3'}, ...
+            'ItemsData', [0 1 3], 'Value', 0);
     end
 
     function add_num(g, key, label, default)
@@ -406,6 +436,16 @@ function isar_gui()
         one_cell = S.rangeCellCheck.Value;
         S.numFields.N_critical.Enable = matlab.lang.OnOffSwitchState(~one_cell);
         S.numFields.range_cell.Enable = matlab.lang.OnOffSwitchState(one_cell);
+
+        % each refinement path reads a different neighbourhood setting:
+        % 'offset' scans a half-width in pixels, 'newtons_and_offset' seeds
+        % Newton's method at a spread of pixel offsets, and plain 'newtons'
+        % sizes its own steps from a single seed per ambiguity
+        method = S.optMethodDrop.Value;
+        S.numFields.amb_refine_pixels.Enable = ...
+            matlab.lang.OnOffSwitchState(strcmpi(method, 'offset'));
+        S.numFields.num_offsets_pixels.Enable = ...
+            matlab.lang.OnOffSwitchState(strcmpi(method, 'newtons_and_offset'));
 
         is_accel = strcmpi(S.angleRateDrop.Value, 'Accelerating');
         S.maneuverCheck.Enable = matlab.lang.OnOffSwitchState(is_accel);
@@ -620,6 +660,18 @@ function isar_gui()
         drawnow limitrate
     end
 
+    function ov = collect_amb_overrides()
+    % COLLECT_AMB_OVERRIDES  Per-algorithm ambiguity spans, 0 meaning inherit.
+
+        ov = struct();
+        for a = fieldnames(S.ambIfAlg).'
+            v = S.ambIfAlg.(a{1}).Value;
+            if v > 0
+                ov.(a{1}) = v;
+            end
+        end
+    end
+
     function cfg = collect_cfg()
         cfg = struct( ...
             'NumberOfAmbiguitiesHavingScatterers', S.ambScatDrop.Value, ...
@@ -638,8 +690,10 @@ function isar_gui()
             'execute_nomp',        S.nompCheck.Value, ...
             'execute_promp',       S.prompCheck.Value, ...
             'execute_mod_omp',     S.modOmpCheck.Value, ...
+            'amb_in_image_former', collect_amb_overrides(), ...
             'execute_bp',          S.bpCheck.Value, ...
             'Ks',                  n.Ks.Value, ...
+            'target_magnitude',    n.target_magnitude.Value, ...
             'oversampling_factor', n.oversampling_factor.Value, ...
             'N_critical',          n.N_critical.Value, ...
             'Nd',                  n.Nd.Value, ...
@@ -652,7 +706,10 @@ function isar_gui()
             'w2',                  n.w2.Value, ...
             'Rs',                  n.Rs.Value, ...
             'Rc',                  n.Rc.Value, ...
+            'optimization_method', S.optMethodDrop.Value, ...
             'amb_refine_pixels',   n.amb_refine_pixels.Value, ...
+            'num_offsets_pixels',  n.num_offsets_pixels.Value, ...
+            'residual_stopping',   S.residualStopCheck.Value, ...
             'seed',                n.seed.Value, ...
             'complex_maneuver',    S.maneuverCheck.Value, ...
             'compute_rank',        S.rankCheck.Value, ...
@@ -1032,7 +1089,6 @@ function panels = result_panels(x_hat, want_mode)
     end
 
     if is_scored(x_hat, 'mod_omp')
-        panels(end+1, :) = {'mod_omp', 'image'};
         panels(end+1, :) = {'mod_omp', 'positions'};
     end
 
@@ -1330,20 +1386,30 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
     u0      = out.u0;
     r       = out.x_hat.(alg);
 
-    % The modified OMP forms one image per ambiguity, stacked along
-    % crossrange, so its panel carries a wider axis of its own and already
-    % covers the bands the other algorithms can only show as replicas.
-    stacked = isfield(r, 'x_array') && ~isempty(r.x_array);
-    if stacked
+    % an algorithm given its own ambiguity span was formed on its own
+    % crossrange grid, so the panel follows that axis rather than the
+    % scenario's
+    if isfield(r, 'x_array') && ~isempty(r.x_array)
         x_array = r.x_array;
     else
         x_array = out.x_array;
     end
 
+    % An algorithm that resolves the crossrange ambiguity -- mod-OMP -- reports
+    % refined positions that can sit outside the band the image former covers.
+    % Clipping the axis to the grid would drop exactly the scatterer it was
+    % built to recover, so those panels widen to the estimates instead.
+    est_x = [];
+    if isfield(r, 'positions') && ~isempty(r.positions)
+        est_x = r.positions(:, 1);
+    end
+    resolves_ambiguity = ~isempty(est_x) ...
+        && (min(est_x) < min(x_array) || max(est_x) > max(x_array));
+
     % with the wider view the neighbouring bands are on screen, so every
     % scatterer can be drawn where it actually is rather than only the ones
     % the image former covers
-    if show_ambiguities || stacked
+    if show_ambiguities || resolves_ambiguity
         truth = out.target_locations;
     else
         truth = out.latent_locations;
@@ -1409,8 +1475,7 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
 
             % the formed image covers its own bands only; draw it again either
             % side so the ambiguous replicas sit next to the true positions.
-            % A stacked image already spans them, so it needs no replicas.
-            if show_ambiguities && ~stacked
+            if show_ambiguities
                 hold(ax, 'on');
                 for off = [-Wx, Wx]
                     imagesc(ax, x_array + off, y_array + u0, img);
@@ -1485,8 +1550,11 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
     if ~is_range_cell
         axis(ax, 'square');
     end
-    if show_ambiguities && ~stacked
+    if show_ambiguities
         xlim(ax, [-1.5, 1.5] * Wx);
+    elseif resolves_ambiguity
+        xlim(ax, pad_limits([est_x(:); true_x(:); ...
+            min(x_array); max(x_array)]));
     else
         xlim(ax, [min(x_array), max(x_array)]);
     end
@@ -1501,4 +1569,24 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
         ylabel(ax, 'range [m]');
     end
     title(ax, sprintf('%s  (RMS error: %.3f m)', heading, r.error));
+end
+
+function lim = pad_limits(v)
+% PAD_LIMITS  Axis limits covering V with a small margin.
+%
+%   Off-grid estimates can fall outside the imaged band, so the limits come
+%   from the data rather than from the grid alone.
+
+    v = v(isfinite(v));
+    if isempty(v)
+        lim = [-1 1];
+        return
+    end
+    lo = min(v); hi = max(v);
+    if hi <= lo
+        pad = max(abs(lo), 1) * 0.05;
+    else
+        pad = (hi - lo) * 0.05;
+    end
+    lim = [lo - pad, hi + pad];
 end

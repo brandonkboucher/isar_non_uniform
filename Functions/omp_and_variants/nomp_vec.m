@@ -50,6 +50,13 @@ function [alpha_hat, p_hat, p_hat_hist] = nomp_vec( ...
       
     % for now, assume we have knowledge of the number of
     % nonzeros
+    % Section IV-A stops every algorithm when the signal residual reaches the
+    % noise level; Inf when no threshold is set, leaving the sparsity cap
+    tau = residual_stop_threshold(options);
+
+    % how many atoms were actually kept, so an early stop returns only those
+    n_kept = sparsity;
+
     r = s;
     istep = 1;
     for iatom = 1:sparsity
@@ -141,8 +148,18 @@ function [alpha_hat, p_hat, p_hat_hist] = nomp_vec( ...
         end
 
         progress_bar('NOMP', iatom, sparsity);
+
+        % the residual has reached the noise level
+        if norm(r) <= tau
+            n_kept = iatom;
+            break
+        end
     end
     fprintf('\n');
+
+    % an early stop leaves the tail of the preallocated arrays untouched
+    p_hat     = p_hat(:, 1:n_kept);
+    alpha_hat = alpha_hat(1:n_kept);
 
     % number_of_total_steps is only an estimate -- rejected Newton steps make
     % the history shorter, more cyclic passes make it longer -- so trim to

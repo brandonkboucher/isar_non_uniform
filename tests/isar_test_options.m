@@ -37,6 +37,9 @@ function opts = isar_test_options()
         ... % together, in a commit that says so.
         'execute_mod_omp',      false, ...
         'execute_bp',           true, ...
+        ... % no per-algorithm override: every algorithm uses the
+        ... % scenario's own ambiguity span, as when the baseline was recorded
+        'amb_in_image_former',  struct(), ...
         ... % --- radar parameters ---
         'Nd',                   16, ...             % phase-history dimension
         'fc',                   1e9, ...            % [Hz] center frequency
@@ -51,13 +54,22 @@ function opts = isar_test_options()
         'complex_maneuver',     true, ...           % complex trajectory when Accelerating
         ... % --- geometry / grid ---
         'Ks',                   4, ...              % number of point scatterers
+        ... % the baseline was recorded with unit amplitudes, before
+        ... % target_magnitude existed; pinning 1 keeps those numbers
+        'target_magnitude',     1, ...              % reflectivity magnitude of every scatterer
         'N_critical',           15, ...             % critically sampled range pixels
         'oversampling_factor',  4, ...              % grid oversampling when 'Oversampled'
         ... % --- solver settings ---
         'Rs',                   4, ...              % Newton steps per atom selection
         'Rc',                   2, ...              % cyclic refinements (NOMP)
         'use_range_approx',     false, ...          % exact range geometry
-        'amb_refine_pixels',    5, ...              % mod-OMP ambiguity search half-width
+        ... % inert while execute_mod_omp is false; 'offset' is the path
+        ... % that existed when the baseline was recorded
+        'optimization_method',  'offset', ...       % mod-OMP doppelganger refinement
+        'num_offsets_pixels',   10, ...             % 'newtons_and_offset' only
+        'amb_refine_pixels',    5, ...              % mod-OMP offset-search half-width
+        'residual_stopping',    false, ...          % fixed atom count, as when the baseline was recorded
+        'residual_threshold',   [], ...             % unused unless residual_stopping
         'range_cell_mode',      false, ...          % full 2-D image, not one range cell
         'range_cell',           0, ...              % [m] unused unless range_cell_mode
         'save_histories',       true, ...           % record per-step position estimates

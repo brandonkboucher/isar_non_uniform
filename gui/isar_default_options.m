@@ -15,6 +15,10 @@ function opts = isar_default_options(user_opts)
         'execute_promp',        true, ...
         'execute_mod_omp',      true, ...
         'execute_bp',           true, ...
+        ... % per-algorithm override of the scenario's ambiguity span, e.g.
+        ... % struct('mod_omp', 1, 'omp', 3). Fields left out inherit the
+        ... % scenario value; algorithms sharing a span share one dictionary.
+        'amb_in_image_former',  struct(), ...
         ... % --- radar parameters ---
         'Nd',                   16, ...                     % phase-history dimension
         'fc',                   30 * const.GHz2Hz, ...       % [Hz] center frequency
@@ -28,14 +32,19 @@ function opts = isar_default_options(user_opts)
         'jerk_mag',             5*pi, ...                    % jerk magnitude of the maneuvering trajectory
         'complex_maneuver',     false, ...                   % use create_complex_target_trajectory when Accelerating
         ... % --- geometry / grid ---
-        'Ks',                   2, ...                     % number of point scatterers
+        'Ks',                   10, ...                     % number of point scatterers
+        'target_magnitude',     5, ...                      % reflectivity magnitude of every scatterer
         'N_critical',           15, ...                     % critically sampled range pixels
         'oversampling_factor',  4, ...                      % grid oversampling when 'Oversampled'
         ... % --- solver settings ---
         'Rs',                   4, ...                      % Newton steps per atom selection (NOMP)
         'Rc',                   2, ...                      % cyclic refinements (NOMP)
         'use_range_approx',     false, ...                  % linearized range of Cheng et al. eq (1)
-        'amb_refine_pixels',    5, ...                      % mod-OMP ambiguity search half-width [pixels]
+        'optimization_method',  'newtons_and_offset', ...             % mod-OMP doppelganger refinement: 'newtons', 'offset' or 'newtons_and_offset'
+        'num_offsets_pixels',   10, ...                     % Newton seeds either side of each ambiguity, 'newtons_and_offset' only
+        'amb_refine_pixels',    5, ...                      % mod-OMP offset-search half-width [pixels], 'offset' only
+        'residual_stopping',    false, ...                  % stop pursuits at the noise level (Nguyen et al. Sec IV-A)
+        'residual_threshold',   [], ...                     % set by isar_run_scenario when residual_stopping
         'range_cell_mode',      false, ...                  % image one range cell only (1-D crossrange)
         'range_cell',           0, ...                      % [m] which range cell, relative to u0
         'save_histories',       false, ...                  % record NOMP's per-step position estimates

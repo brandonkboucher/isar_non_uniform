@@ -78,6 +78,10 @@ function [alpha_hat, p_hat, p_hat_hist] = promp_vec( ...
 
     % support set, used to stop the iteration if an atom is reselected
     Lambda = [];
+
+    % Section IV-A stops every algorithm when the signal residual reaches the
+    % noise level; Inf when no threshold is set, leaving the sparsity cap
+    tau = residual_stop_threshold(options);
     
     % for now, assume we have knowledge of the number of
     % nonzeros
@@ -155,6 +159,11 @@ function [alpha_hat, p_hat, p_hat_hist] = promp_vec( ...
         end
 
         progress_bar('PROMP', iatom, sparsity);
+
+        % the residual has reached the noise level
+        if norm(r) <= tau
+            break
+        end
     end
     fprintf('\n');
 

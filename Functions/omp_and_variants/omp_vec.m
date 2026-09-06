@@ -1,8 +1,17 @@
 function x_hat = omp_vec( ...
     y, ... % the measurement \in \mathbb{C}^{M}
     A, ... % the forward operator function
-    K ... % Sparsity
+    K, ... % Sparsity
+    options ... % optional; .residual_threshold stops at the noise level
     )
+
+    if nargin < 4 || ~isstruct(options)
+        options = struct();
+    end
+
+    % Nguyen et al. stop every algorithm when the residual reaches the noise
+    % level rather than at a fixed atom count; Inf when no threshold is set
+    tau = residual_stop_threshold(options);
 
     % initialize the array containing the approximate non-zero
     % indices
@@ -39,6 +48,11 @@ function x_hat = omp_vec( ...
         end
 
         progress_bar('OMP', i, K);
+
+        % the residual has reached the noise level: nothing left to explain
+        if norm(r) <= tau
+            break
+        end
     end
     fprintf('\n');
 end

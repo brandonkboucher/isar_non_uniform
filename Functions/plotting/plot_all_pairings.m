@@ -119,7 +119,8 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         axis(h, 'equal');  grid(h, 'on');  box(h, 'on');
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        legend(h, 'Location', 'southwest');
+        legend(h, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+            'FontSize', 10, 'Box', 'off');
     
         if isempty(d)
             title(h, 'No matched pairs');
@@ -200,7 +201,8 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         axis(h, 'equal');  grid(h, 'on');  box(h, 'on');
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        legend(h, 'Location', 'southwest');
+        legend(h, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+            'FontSize', 10, 'Box', 'off');
     
         if isempty(d)
             title(h, 'No matched pairs');
@@ -281,7 +283,8 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         axis(h, 'equal');  grid(h, 'on');  box(h, 'on');
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        legend(h, 'Location', 'southwest');
+        legend(h, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+            'FontSize', 10, 'Box', 'off');
     
         if isempty(d)
             title(h, 'No matched pairs');
@@ -362,7 +365,8 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         axis(h, 'equal');  grid(h, 'on');  box(h, 'on');
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        legend(h, 'Location', 'southwest');
+        legend(h, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+            'FontSize', 10, 'Box', 'off');
     
         if isempty(d)
             title(h, 'No matched pairs');
@@ -371,26 +375,24 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
                 sqrt(mean(d.^2)), numel(d), numel(uT), numel(uE)), 'FontSize', title_font_size);
         end
     
-        % mark the boundaries between adjacent ambiguity blocks, while the
-        % axes are still held
-        x_array_mod = x_hat.mod_omp.x_array;
-        amb_index   = x_hat.mod_omp.amb_index;
-        Nx_block    = size(x_hat.mod_omp.image,2) / numel(amb_index);
-        for iamb = 2:numel(amb_index)
-            xb = mean(x_array_mod(round((iamb-1)*Nx_block) + [0 1]));
-            plot(h, [xb xb], [min(y_array) max(y_array)] + u0, '--', ...
-                'Color', [0.5 0.5 0.5], 'LineWidth', 1, ...
-                'HandleVisibility', 'off');
+        % mark the unambiguous crossrange band while the axes are still
+        % held, so which ambiguity an estimate landed in is readable
+        if isfield(x_hat.mod_omp, 'Wx') && ~isempty(x_hat.mod_omp.Wx)
+            for edge = [-0.5 0.5] * x_hat.mod_omp.Wx
+                plot(h, [edge edge], [min(y_array) max(y_array)] + u0, '--', ...
+                    'Color', [0.5 0.5 0.5], 'LineWidth', 1, ...
+                    'HandleVisibility', 'off');
+            end
         end
 
         if ~wasHold
             hold(h, 'off');
         end
 
-        % the modified OMP searches several ambiguities, so its estimates can
-        % lie outside the single unambiguous extent covered by `x_array`; use
-        % the wider crossrange axis of its stacked latent image
-        xlim([min(x_array_mod), max(x_array_mod)])
+        % mod-OMP resolves the ambiguity, so its estimates can lie outside the
+        % band the image former covers. Take the limits from the data rather
+        % than from `x_array`, or the recovered scatterer falls off the plot.
+        xlim(pad_limits([E(:,1); T(:,1); min(x_array); max(x_array)]))
         ylim([min(y_array)+u0, max(y_array)+u0])
         set(gca,'FontSize',font_size)
         axis square
@@ -459,7 +461,8 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         axis(h, 'equal');  grid(h, 'on');  box(h, 'on');
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        legend(h, 'Location', 'southwest');
+        legend(h, 'Location', 'southoutside', 'Orientation', 'horizontal', ...
+            'FontSize', 10, 'Box', 'off');
     
         if isempty(d)
             title(h, 'No matched pairs');
@@ -491,3 +494,22 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
     saveas(f, ['plots/position_', num2str(scenario_number), '.png'])
 end
 
+function lim = pad_limits(v)
+% PAD_LIMITS  Axis limits covering V with a small margin.
+%
+%   Off-grid estimates can fall outside the imaged band, so the limits are
+%   taken from the data rather than from the grid alone.
+
+    v = v(isfinite(v));
+    if isempty(v)
+        lim = [-1 1];
+        return
+    end
+    lo = min(v); hi = max(v);
+    if hi <= lo
+        pad = max(abs(lo), 1) * 0.05;
+    else
+        pad = (hi - lo) * 0.05;
+    end
+    lim = [lo - pad, hi + pad];
+end

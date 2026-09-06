@@ -29,6 +29,7 @@ options.execute_omp                 = true;
 options.execute_nomp                = true;
 options.execute_promp               = true;
 options.execute_mod_omp             = true;
+options.execute_mod_omp_with_promp  = false;
 
 options.save_results                = true;
 options.save_plots                  = true;
@@ -51,22 +52,32 @@ options.manual_maneuvering_target   = false;
 %% scenario parameters
 
 % define target parameters
-sc.num_of_scatterers        = 2;
-sc.num_optimization_steps   = 4;
-sc.num_optimization_cycles  = 2; % only NOMP
-sc.oversampling_factor      = 4;
+sc.num_of_scatterers            = 10;
 
 sc.is_target_accelerating       = true;
 sc.is_target_maneuvering        = false;
 sc.is_grid_oversampled          = true;
 sc.is_closely_spaced            = false;
 sc.is_off_grid                  = false;
-sc.num_amb_having_scatterers    = 3;
+sc.num_amb_having_scatterers    = 1;
 sc.num_amb_in_image_former      = 1;
 
 sc.yaw_acceleration             = 170;  % [rad/s/s]
 sc.yaw_jerk                     = 0;    % [rad/s/s/s]
 sc.target_magnitude             = 5;
+
+% SNR in dB for the additive white complex Gaussian noise, or [] for a
+% noiseless measurement. Nguyen et al. stop every algorithm when the signal
+% residual reaches the noise level (Sec IV-A), so that criterion needs a noise
+% level to exist: leave this empty and the pursuits run to the sparsity cap
+% instead, which is what they have always done here.
+sc.snr_db                       = [];
+
+sc.num_optimization_steps   = 4;
+sc.num_optimization_cycles  = 2; % only NOMP
+sc.oversampling_factor      = 4;
+sc.optimization_method      = 'newtons_and_offset'; % only mod-OMP, 'newtons' or 'offset'
+sc.num_offsets_pixels       = 10; % only mod-OMP 'newtons_and_offset'
 
 %% radar parameters
 
@@ -76,24 +87,6 @@ c = const.c;
 
 % define the dimensionality of the phase-history
 Nd = 16;
-
-% For the Doppler ambiguity to be genuine the scatterer's atom must be
-% reproduced by the atom Wx away in crossrange. Two things break that:
-%
-%   1. Fractional bandwidth. The fold distance is wavelength dependent,
-%      Wx(f) = c*prf / (2*(fc + f)*w0), so a wide band folds every range bin
-%      to a different crossrange and the ghost cancels instead of aliasing.
-%      Keep (max(f_hat) - min(f_hat))/fc below ~0.01.
-%   2. Target range extent. Rotation mixes range into crossrange through
-%      x_rot = x*cos(theta) - y*sin(theta), and the exact range's x_rot^2/(2*u0)
-%      term then breaks the fold. The target must stay compact relative to u0.
-%
-% Lowering fs alone satisfies (1) but violates (2), because the coarse range
-% resolution stretches the grid (and therefore the target) over hundreds of
-% metres. Raising fc satisfies (1) with the bandwidth intact; it shrinks Wx, so
-% prf is raised with it to hold the unambiguous extent near 9.5 m.
-% create_target_and_grid measures the resulting ghost coherence and warns if
-% the ambiguity has been destroyed.
 
 fc      = 30 * const.GHz2Hz; % [Hz] center frequency - Ka-band
 B       = 149.9 * const.MHz2Hz; % [Hz] bandwidth, not used
@@ -127,7 +120,8 @@ range_array = t_hat .* const.c / 2;
 N_critical = 15; % range cells, must be <= L = size(t_hat,1)
 
 % create target scatterers and grid
-[sc,target_locations, grid, theta_m, u0, is_doppler_aliasing] ...
+[sc,target_locations, grid, theta_m, ...
+    u0, is_doppler_aliasing] ...
     = create_target_and_grid(...
         sc, ...         % scenario parameters
         t_m, ...        % [s] (M x 1) slow-time
@@ -194,6 +188,20 @@ fprintf(['A has a rank of ', num2str(rank(A)), '\n'])
 % off-grid scatterers (each column of `as` is one scatterer's response).
 alpha_s = sc.target_magnitude * ones(sc.num_of_scatterers,1);       % complex scattering amplitudes (unit for now)
 y = as * alpha_s;           % = sum_k alpha_s(k) * as(:,k)
+
+% additive white complex Gaussian noise, and the residual level the pursuits
+% stop at. For per-sample variance sigma2 over N samples, E{||e||^2} =
+% N*sigma2, so the noise level the paper refers to is sqrt(N*sigma2).
+options.residual_threshold = [];
+if isfield(sc, 'snr_db') && ~isempty(sc.snr_db) && isfinite(sc.snr_db)
+
+    sigma2 = mean(abs(y).^2) / 10^(sc.snr_db/10);
+    y = y + sqrt(sigma2/2) * (randn(size(y)) + 1j*randn(size(y)));
+
+    options.residual_threshold = sqrt(numel(y) * sigma2);
+    fprintf(['noise at %.1f dB SNR; algorithms stop when ||r|| reaches ' ...
+        '%.4g (Nguyen et al. Sec IV-A)\n'], sc.snr_db, options.residual_threshold);
+end
 Y = reshape(y, M, L);
 
 %% output
@@ -206,15 +214,18 @@ if options.calculate_mutual_coherence
 end
 
 % modified OMP: each selected atom is compared against its ambiguous
-% doppelgangers, so the latent image it returns is one grid image per
-% ambiguity stacked along crossrange, i.e. [Ny, num_of_amb * Nx]
+% doppelgangers and refined off the grid, so it reports continuous scatterer
+% positions in the same [alpha_hat, p_hat] form as PROMP
 if isfield(options, 'execute_mod_omp') ...
     && options.execute_mod_omp
 
-    % number of ambiguities the image former searches over
+    % number of ambiguities the doppelganger test searches over
     n_amb = sc.num_amb_having_scatterers;
 
-    x_hat_mod_omp = mod_omp_vec(...
+    % mod-OMP refines each selected atom off the grid while it tests the
+    % ambiguous doppelgangers, so it returns continuous positions like PROMP
+    % rather than a gridded latent image
+    [alpha_hat, p_hat] = mod_omp_vec(...
         y,... % measurement
         A,... % gridded sensing matrix
         sc.num_of_latent_scatterers, ... % sparsity
@@ -224,30 +235,16 @@ if isfield(options, 'execute_mod_omp') ...
         f_hat_l, ...
         fc, ...
         n_amb, ...
+        sc, ...
         options ...
         );
 
-    x_hat.mod_omp.image = reshape(x_hat_mod_omp, ...
-        grid.Ny, n_amb * grid.Nx);
+    x_hat.mod_omp.positions = p_hat.';
+    x_hat.mod_omp.alpha     = alpha_hat;
 
-    % the ambiguity offsets in the order mod_omp_vec stacks them, i.e. the
-    % same [-1, 0, 1] ordering used to place each atom in x_hat
-    ii = 0:(n_amb-1);
-    x_hat.mod_omp.amb_index = sort(ceil(ii/2) .* (-1).^ii);
-
-    % crossrange axis of the stacked image: block j is the grid axis shifted
-    % by amb_index(j) unambiguous extents, so each column carries its true
-    % absolute crossrange and the extracted positions need no unwrapping
-    x_hat.mod_omp.x_array = reshape( ...
-        grid.x_array(:) + x_hat.mod_omp.amb_index * grid.Wx, 1, []);
-
-    x_hat.mod_omp.positions =...
-        extract_target_positions(...
-        x_hat.mod_omp.image, ...
-        x_hat.mod_omp.x_array, ...
-        grid.y_array, ...
-        sc.num_of_scatterers, ...
-        'none');
+    % carried for the plots: the unambiguous crossrange band, so a recovered
+    % ambiguity can be read off the position panel
+    x_hat.mod_omp.Wx        = grid.Wx;
 
     [x_hat.mod_omp.error, x_hat.mod_omp.pairs, ...
         x_hat.mod_omp.missed, x_hat.mod_omp.false_alarms, ...
@@ -265,7 +262,8 @@ if isfield(options, 'execute_omp') ...
     x_hat_omp = omp_vec(...
         y,...
         A,...
-        sc.num_of_latent_scatterers);
+        sc.num_of_latent_scatterers, ...
+        options);
 
     x_hat.omp.image = reshape(x_hat_omp,grid.Ny,grid.Nx);
 

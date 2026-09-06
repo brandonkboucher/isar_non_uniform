@@ -117,10 +117,6 @@ function out = isar_run_scenario(cfg, opts)
                 char(string(cfg.ImageFormerGridDensity)));
     end
 
-    % redefine the grid in order to handle the number of ambiguous scatterers
-    Nx = Kc * n_amb_if * n_pix_per_amb;
-    Nx = Nx + (mod(Nx,2)==0);       % keep the number of pixels odd
-
     if range_cell_mode
         Ny = 1;                     % one cell, so one row
         Kr = 1;
@@ -132,29 +128,86 @@ function out = isar_run_scenario(cfg, opts)
         range_pixel_res = range_resolution / Kr;
     end
 
-    K = Nx * Ny; % number of vectorized samples
-
     cross_range_pixel_res = cross_range_resolution / Kc;
 
     u0 = opts.u0; % [m] distance from the origin to the target center
 
-    % range and crossrange grid of the latent image, centered on 0 so the
-    % critical grid is a subset of the oversampled grid
+    % range grid, centered on 0 so the critical grid is a subset of the
+    % oversampled grid. Only crossrange depends on the ambiguity span.
     if range_cell_mode
         y_array = opts.range_cell;      % the one cell being imaged
     else
         y_array = ((0:Ny-1) - (Ny-1)/2) * range_pixel_res;
     end
-    x_array = ((0:Nx-1) - (Nx-1)/2) * cross_range_pixel_res;
-    [X,Y] = meshgrid(x_array,y_array);
 
-    yk = reshape(Y, [], 1);
-    xk = reshape(X, [], 1);
+    %% ambiguity span per algorithm
+    % Each algorithm can be given its own number of ambiguities in the image
+    % former, so that mod-OMP working from a one-block dictionary can be
+    % compared against an OMP handed the full three-block dictionary -- the
+    % comparison the computational argument rests on. Algorithms that share a
+    % span share one dictionary; only a distinct span costs a second build.
+    alg_names  = {'omp', 'mod_omp', 'nomp', 'promp', 'bp'};
+    alg_enabled = [opts.execute_omp, opts.execute_mod_omp, opts.execute_nomp, ...
+        opts.execute_promp, opts.execute_bp];
 
-    % a true scatterer an algorithm never reports is charged the crossrange
-    % width of the imaged scene, so declining to report a hard target cannot
-    % flatter the RMS. See calculate_reconstruction_error.
-    miss_penalty = max(x_array) - min(x_array);
+    amb_if_alg = struct();
+    for ia = 1:numel(alg_names)
+        amb_if_alg.(alg_names{ia}) = n_amb_if;
+    end
+    if isfield(opts, 'amb_in_image_former') && isstruct(opts.amb_in_image_former)
+        for fn = fieldnames(opts.amb_in_image_former).'
+            a = fn{1};
+            if ~ismember(a, alg_names)
+                error('isar_run_scenario:ambOverride', ...
+                    'unknown algorithm ''%s'' in amb_in_image_former', a);
+            end
+            v = opts.amb_in_image_former.(a);
+            if ~isempty(v) && isfinite(v) && v >= 1
+                amb_if_alg.(a) = v;
+            end
+        end
+    end
+
+    % the spans actually needed: the scenario's own (it is what the reports
+    % and out.x_array describe) plus every enabled algorithm's
+    spans = n_amb_if;
+    for ia = 1:numel(alg_names)
+        if alg_enabled(ia)
+            spans(end+1) = amb_if_alg.(alg_names{ia}); %#ok<AGROW>
+        end
+    end
+    spans = unique(spans);
+
+    grids = struct();
+    for v = spans(:).'
+        Nxv = Kc * v * n_pix_per_amb;
+        Nxv = Nxv + (mod(Nxv,2)==0);        % keep the number of pixels odd
+
+        x_arr    = ((0:Nxv-1) - (Nxv-1)/2) * cross_range_pixel_res;
+        [Xv, Yv] = meshgrid(x_arr, y_array);
+
+        grids.(span_key(v)) = struct( ...
+            'n_amb_if', v, ...
+            'Nx',       Nxv, ...
+            'K',        Nxv * Ny, ...
+            'x_array',  x_arr, ...
+            'xk',       reshape(Xv, [], 1), ...
+            'yk',       reshape(Yv, [], 1), ...
+            'A',        []);
+    end
+
+    % the scenario's own span is what the reports, out.x_array and out.A
+    % describe, so keep those names bound to it
+    g_default = grids.(span_key(n_amb_if));
+    Nx = g_default.Nx;  K = g_default.K;
+    x_array = g_default.x_array;
+    xk = g_default.xk;  yk = g_default.yk;
+
+    % A missed scatterer is charged the crossrange width of the imaged scene.
+    % It has to be the same charge for every algorithm or the comparison tilts
+    % toward whoever was given the narrower grid, so it comes from the widest.
+    g_widest = grids.(span_key(max(spans)));
+    miss_penalty = max(g_widest.x_array) - min(g_widest.x_array);
 
     %% scatterer placement
     Ks = opts.Ks; % number of point scatterers
@@ -234,33 +287,75 @@ function out = isar_run_scenario(cfg, opts)
     end
     log_fcn(sprintf('grid is %d x %d (%d atoms), measurement is %d samples', ...
         Ny, Nx, K, M*L));
+    for ia = 1:numel(alg_names)
+        if alg_enabled(ia) && amb_if_alg.(alg_names{ia}) ~= n_amb_if
+            log_fcn(sprintf('  %s uses %d ambiguities in the image former', ...
+                alg_names{ia}, amb_if_alg.(alg_names{ia})));
+        end
+    end
 
     %% sensing matrix and measurement
     progress_fcn(0.02, 'building sensing matrix');
     as = compute_atoms_batch(target_locations(:,1), target_locations(:,2), ...
         u0, theta, f_hat_l, fc, opts.use_range_approx);
 
-    progress_fcn(0.05, 'building reconstruction dictionary');
-    A = compute_atoms_batch(xk, yk, u0, theta, f_hat_l, fc, ...
-        opts.use_range_approx, @(f) progress_fcn(0.05 + 0.35*f, 'building reconstruction dictionary'));
+    n_spans = numel(spans);
+    for isp = 1:n_spans
+        v = spans(isp);
+        key = span_key(v);
+        g   = grids.(key);
 
-    log_fcn(sprintf('A has dimension %d by %d', size(A,1), size(A,2)));
-    if opts.compute_rank
-        progress_fcn(0.42, 'computing rank(A)');
-        log_fcn(sprintf('A has a rank of %d', rank(A)));
+        if v == 1
+            msg = 'building dictionary (1 ambiguity)';
+        else
+            msg = sprintf('building dictionary (%d ambiguities)', v);
+        end
+        base = 0.05 + 0.35*(isp-1)/n_spans;
+        progress_fcn(base, msg);
+
+        g.A = compute_atoms_batch(g.xk, g.yk, u0, theta, f_hat_l, fc, ...
+            opts.use_range_approx, ...
+            @(f) progress_fcn(base + 0.35*f/n_spans, msg));
+        grids.(key) = g;
+
+        log_fcn(sprintf('dictionary for %d-ambiguity grid: %d by %d', ...
+            v, size(g.A,1), size(g.A,2)));
+        if opts.compute_rank
+            progress_fcn(0.42, 'computing rank(A)');
+            log_fcn(sprintf('  rank %d', rank(g.A)));
+        end
     end
+
+    A = grids.(span_key(n_amb_if)).A;   % the scenario's own dictionary
 
     % the measurement superposes the exact phase histories of the (off-grid)
     % scatterers; each column of `as` is one scatterer's response
-    alpha_s = ones(Ks,1);   % complex scattering amplitudes (unit for now)
+    % complex scattering amplitudes, identical across scatterers. The noise
+    % power below is set from mean(|y|^2), so the requested SNR is preserved
+    % whatever magnitude is chosen -- this scales the signal, not the contrast
+    % against the noise.
+    alpha_s = opts.target_magnitude * ones(Ks,1);
     y = as * alpha_s;
 
     % additive white complex Gaussian noise at the requested SNR
     snr_db = parse_noise(cfg.Noise);
+    opts.residual_threshold = [];
     if ~isnan(snr_db)
         sigma2 = mean(abs(y).^2) / 10^(snr_db/10);
         y = y + sqrt(sigma2/2) * (randn(size(y)) + 1j*randn(size(y)));
         log_fcn(sprintf('added white Gaussian noise at %.1f dB SNR', snr_db));
+
+        % Nguyen et al. stop every algorithm when the signal residual reaches
+        % the noise level (Sec IV-A) rather than at a fixed atom count. For
+        % per-sample variance sigma2 over N samples, E{||e||^2} = N*sigma2.
+        if opts.residual_stopping
+            opts.residual_threshold = sqrt(numel(y) * sigma2);
+            log_fcn(sprintf(['algorithms stop when ||r|| reaches %.4g ' ...
+                '(residual stopping)'], opts.residual_threshold));
+        end
+    elseif opts.residual_stopping
+        log_fcn(['residual stopping requested but the measurement is ' ...
+            'noiseless, so the sparsity cap governs']);
     end
 
     %% image formation
@@ -268,11 +363,18 @@ function out = isar_run_scenario(cfg, opts)
 
     if opts.execute_omp
         progress_fcn(0.45, 'running OMP');
-        x_hat_omp = omp_vec(y, A, Ks_latent);
-        x_hat.omp.image = reshape(x_hat_omp, Ny, Nx);
+        g = grids.(span_key(amb_if_alg.omp));
+
+        x_hat_omp = omp_vec(y, g.A, Ks_latent, opts);
+        x_hat.omp.image = reshape(x_hat_omp, Ny, g.Nx);
+
+        % each algorithm carries the crossrange axis of the grid it was
+        % actually given, since those axes now differ between algorithms
+        x_hat.omp.x_array  = g.x_array;
+        x_hat.omp.n_amb_if = g.n_amb_if;
 
         x_hat.omp.positions = extract_target_positions( ...
-            x_hat.omp.image, x_array, y_array, Ks_latent, 'none');
+            x_hat.omp.image, g.x_array, y_array, Ks_latent, 'none');
 
         [x_hat.omp.error, x_hat.omp.pairs, x_hat.omp.missed, ...
             x_hat.omp.false_alarms, x_hat.omp.d] = ...
@@ -283,38 +385,42 @@ function out = isar_run_scenario(cfg, opts)
         progress_fcn(0.60, 'running modified OMP');
 
         % mod-OMP keeps the one-block dictionary and recovers each atom's
-        % ambiguity index by testing its doppelgangers, so the latent image it
-        % returns is one grid image per ambiguity stacked along crossrange:
-        % [Ny, n_amb * Nx]
+        % ambiguity index by testing its doppelgangers, refining the winner
+        % off the grid. It therefore reports continuous positions in the same
+        % [alpha_hat, p_hat] form as PROMP, not a gridded latent image.
         n_amb = n_amb_scat;
+        g = grids.(span_key(amb_if_alg.mod_omp));
 
         grid_s = struct( ...
-            'xk',                    xk, ...
-            'yk',                    yk, ...
+            'xk',                    g.xk, ...
+            'yk',                    g.yk, ...
             'Wx',                    Wx, ...
-            'Nx',                    Nx, ...
+            'Nx',                    g.Nx, ...
             'Ny',                    Ny, ...
-            'x_array',               x_array, ...
+            'x_array',               g.x_array, ...
             'y_array',               y_array, ...
             'cross_range_pixel_res', cross_range_pixel_res);
 
-        x_hat_mod = mod_omp_vec(y, A, Ks_latent, grid_s, u0, theta, ...
-            f_hat_l, fc, n_amb, opts);
+        % mod_omp_vec takes the scenario struct separately from the options:
+        % it chooses between refining the doppelganger by a local offset
+        % search and refining it by Newton's method, and the latter needs a
+        % step count. Rs is that step count -- the same Newton/Gauss-Newton
+        % budget NOMP and PROMP are given, so the comparison stays even.
+        sc_mod = struct( ...
+            'optimization_method',     opts.optimization_method, ...
+            'num_optimization_steps',  opts.Rs, ...
+            'num_offsets_pixels',      opts.num_offsets_pixels);
 
-        x_hat.mod_omp.image = reshape(x_hat_mod, Ny, n_amb * Nx);
+        [alpha_hat, p_hat] = mod_omp_vec(y, g.A, Ks_latent, grid_s, u0, ...
+            theta, f_hat_l, fc, n_amb, sc_mod, opts);
 
-        % the ambiguity offsets in the order mod_omp_vec stacks them
-        kk = 0:(n_amb-1);
-        x_hat.mod_omp.amb_index = sort(ceil(kk/2) .* (-1).^kk);
+        x_hat.mod_omp.positions = p_hat.';
+        x_hat.mod_omp.alpha     = alpha_hat;
+        x_hat.mod_omp.x_array   = g.x_array;
+        x_hat.mod_omp.n_amb_if  = g.n_amb_if;
 
-        % block j is the grid axis shifted by amb_index(j) unambiguous
-        % extents, so every column carries its true absolute crossrange
-        x_hat.mod_omp.x_array = reshape( ...
-            x_array(:) + x_hat.mod_omp.amb_index * Wx, 1, []);
-
-        x_hat.mod_omp.positions = extract_target_positions( ...
-            x_hat.mod_omp.image, x_hat.mod_omp.x_array, y_array, ...
-            Ks_latent, 'none');
+        % carried for the plots: the unambiguous crossrange band
+        x_hat.mod_omp.Wx        = Wx;
 
         [x_hat.mod_omp.error, x_hat.mod_omp.pairs, x_hat.mod_omp.missed, ...
             x_hat.mod_omp.false_alarms, x_hat.mod_omp.d] = ...
@@ -324,9 +430,14 @@ function out = isar_run_scenario(cfg, opts)
 
     if opts.execute_bp
         progress_fcn(0.70, 'running backprojection');
-        x_hat_bp = A' * y;
-        x_hat_bp = reshape(x_hat_bp, Ny, Nx);
+        g = grids.(span_key(amb_if_alg.bp));
+
+        x_hat_bp = g.A' * y;
+        x_hat_bp = reshape(x_hat_bp, Ny, g.Nx);
         x_hat.bp.image = x_hat_bp / norm(x_hat_bp, 'fro');
+
+        x_hat.bp.x_array  = g.x_array;
+        x_hat.bp.n_amb_if = g.n_amb_if;
 
         if is_off_grid
             interpolation_type = 'linear';
@@ -335,7 +446,7 @@ function out = isar_run_scenario(cfg, opts)
         end
 
         x_hat.bp.positions = extract_target_positions( ...
-            x_hat.bp.image, x_array, y_array, Ks_latent, interpolation_type);
+            x_hat.bp.image, g.x_array, y_array, Ks_latent, interpolation_type);
 
         [x_hat.bp.error, x_hat.bp.pairs, x_hat.bp.missed, ...
             x_hat.bp.false_alarms, x_hat.bp.d] = ...
@@ -344,11 +455,15 @@ function out = isar_run_scenario(cfg, opts)
 
     if opts.execute_nomp
         progress_fcn(0.78, 'running NOMP');
-        [alpha_hat, p_hat, p_hat_hist] = nomp_vec(y, A, opts.Rs, opts.Rc, ...
-            Ks_latent, xk, yk, u0, theta, f_hat_l, fc, opts);
+        g = grids.(span_key(amb_if_alg.nomp));
+
+        [alpha_hat, p_hat, p_hat_hist] = nomp_vec(y, g.A, opts.Rs, opts.Rc, ...
+            Ks_latent, g.xk, g.yk, u0, theta, f_hat_l, fc, opts);
 
         x_hat.nomp.positions = p_hat.';
         x_hat.nomp.alpha = alpha_hat;
+        x_hat.nomp.x_array  = g.x_array;
+        x_hat.nomp.n_amb_if = g.n_amb_if;
 
         % per-step position estimates for the traced atom, [nsteps x 2].
         % empty unless opts.save_histories is set
@@ -361,11 +476,15 @@ function out = isar_run_scenario(cfg, opts)
 
     if opts.execute_promp
         progress_fcn(0.88, 'running PROMP');
-        [alpha_hat, p_hat, p_hat_hist] = promp_vec(y, A, opts.Rs, Ks_latent, ...
-            xk, yk, u0, theta, f_hat_l, fc, opts);
+        g = grids.(span_key(amb_if_alg.promp));
+
+        [alpha_hat, p_hat, p_hat_hist] = promp_vec(y, g.A, opts.Rs, Ks_latent, ...
+            g.xk, g.yk, u0, theta, f_hat_l, fc, opts);
 
         x_hat.promp.positions = p_hat.';
         x_hat.promp.alpha = alpha_hat;
+        x_hat.promp.x_array  = g.x_array;
+        x_hat.promp.n_amb_if = g.n_amb_if;
 
         % per-step position estimates for the traced atom, [nsteps x 2].
         % empty unless opts.save_histories is set
@@ -405,6 +524,9 @@ function out = isar_run_scenario(cfg, opts)
     out.A                     = A;     % reconstruction dictionary, [ML x Nx*Ny]
     out.as                    = as;    % measurement sensing matrix, [ML x Ks]
 
+    out.amb_if_alg            = amb_if_alg;
+    out.grids                 = rmfield_all_A(grids);
+
     out.sim_config = struct( ...
         'W_x_m',                Wx, ...
         'PixelsPerAmbiguity',   n_pix_per_amb, ...
@@ -421,6 +543,24 @@ function out = isar_run_scenario(cfg, opts)
         'RangeCellMode',        string(range_cell_mode));
 
     progress_fcn(1, 'done');
+end
+
+function key = span_key(v)
+% SPAN_KEY  Struct field name for the grid of a given ambiguity span.
+
+    key = sprintf('span_%d', v);
+end
+
+function g = rmfield_all_A(grids)
+% RMFIELD_ALL_A  The per-span grid geometry without the dictionaries.
+%
+%   The dictionaries are large and the caller already gets the scenario's own
+%   as out.A, so the reported grids carry geometry only.
+
+    g = grids;
+    for fn = fieldnames(g).'
+        g.(fn{1}) = rmfield(g.(fn{1}), 'A');
+    end
 end
 
 function snr_db = parse_noise(noise)

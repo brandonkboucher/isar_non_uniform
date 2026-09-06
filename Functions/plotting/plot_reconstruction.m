@@ -156,38 +156,28 @@ function plot_reconstruction(...
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
 
-        % the modified OMP image is [Ny, num_of_amb * Nx]: one grid image per
-        % ambiguity stacked along crossrange. It therefore carries its own
-        % crossrange axis, which spans several unambiguous extents Wx rather
-        % than the single extent of `x_array`.
-        x_array_mod = x_hat.mod_omp.x_array;
-        amb_index   = x_hat.mod_omp.amb_index;
-        Nx_block    = size(x_hat.mod_omp.image,2) / numel(amb_index);
+        x_mod = x_hat.mod_omp.positions(:,1);
+        y_mod = x_hat.mod_omp.positions(:,2);
 
-        if options.log_scale_plotting
-            imagesc(x_array_mod, y_array + u0, 20*log10(abs(x_hat.mod_omp.image)))
-        else
-            imagesc(x_array_mod, y_array + u0, abs(x_hat.mod_omp.image))
-        end
+        plot(x_mod, y_mod + u0, '*', ...
+            'MarkerEdgeColor', [0.85 0.33 0.10], ...
+            'MarkerSize', 12, ...
+            'LineWidth', 1.5);
 
-        % keep the same panel box as the single-ambiguity images so the row
-        % stays uniform; the stacked image is simply compressed in crossrange
         axis square
-        hold on
-        overlay_truth();
+        hold on; overlay_truth();
 
-        % separate the ambiguity blocks and label each with its index. The
-        % y-axis is reversed by imagesc, so min(y_array) is the top edge.
-        for iamb = 1:numel(amb_index)
-            if iamb > 1
-                xb = mean(x_array_mod(round((iamb-1)*Nx_block) + [0 1]));
-                plot([xb xb], [min(y_array) max(y_array)] + u0, '--', ...
-                    'Color', [1 1 0], 'LineWidth', 1.5);
+        % mod-OMP refines each atom off the grid after resolving which
+        % ambiguity it belongs to, so its estimates can sit outside the
+        % crossrange band the image former covers. Widen the axis to whatever
+        % the estimates and the truth actually span, and mark the unambiguous
+        % band so a recovered ambiguity is readable.
+        if isfield(x_hat.mod_omp, 'Wx') && ~isempty(x_hat.mod_omp.Wx)
+            Wx = x_hat.mod_omp.Wx;
+            for edge = [-0.5 0.5] * Wx
+                plot([edge edge], [min(y_array) max(y_array)] + u0, '--', ...
+                    'Color', [0.5 0.5 0.5], 'LineWidth', 1.2);
             end
-            xc = mean(x_array_mod(round((iamb-1)*Nx_block) + [1 Nx_block]));
-            text(xc, min(y_array) + u0, sprintf('%+d', amb_index(iamb)), ...
-                'Color', [1 1 0], 'FontSize', font_size, ...
-                'HorizontalAlignment', 'center', 'VerticalAlignment', 'top');
         end
         hold off
 
@@ -196,16 +186,9 @@ function plot_reconstruction(...
         title(sprintf('Modified OMP reconstruction (error: %.2e)', ...
             x_hat.mod_omp.error), 'FontSize', title_font_size)
         set(gca, "FontSize",font_size)
-        xlim([min(x_array_mod), max(x_array_mod)])
+        xlim(pad_limits([x_mod(:); true_x(:); min(x_array); max(x_array)]))
         ylim([min(y_array)+u0, max(y_array)+u0])
-        colormap gray
-        c2 = colorbar;
-        if options.log_scale_plotting
-            c2.Label.String = 'Log-Scaled [dB]';
-        else
-            c2.Label.String = 'Amplitude [Linear]'; 
-        end
-        c2.FontSize = font_size;
+        set(gca, 'YDir', 'reverse');
         set(gca,'FontSize',font_size)
     end
     
@@ -301,3 +284,22 @@ function plot_reconstruction(...
     saveas(f, ['plots/scenario_', num2str(scenario_number), '.png'])
 end
 
+function lim = pad_limits(v)
+% PAD_LIMITS  Axis limits covering V with a small margin.
+%
+%   Off-grid estimates can fall outside the imaged band, so the limits are
+%   taken from the data rather than from the grid alone.
+
+    v = v(isfinite(v));
+    if isempty(v)
+        lim = [-1 1];
+        return
+    end
+    lo = min(v); hi = max(v);
+    if hi <= lo
+        pad = max(abs(lo), 1) * 0.05;
+    else
+        pad = (hi - lo) * 0.05;
+    end
+    lim = [lo - pad, hi + pad];
+end

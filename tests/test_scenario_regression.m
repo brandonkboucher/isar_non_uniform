@@ -323,6 +323,31 @@ function [ok, worst, detail] = compare_struct(now_s, base_s, tol)
         A = now_s.(f);
         B = base_s.(f);
 
+        % an option can itself be a struct (amb_in_image_former is one), so
+        % compare those field by field rather than trying to make a double of
+        % them. Two empty structs compare equal, which is the common case.
+        if isstruct(A) || isstruct(B)
+            if ~isstruct(A) || ~isstruct(B)
+                ok = false;
+                if isempty(detail)
+                    detail = sprintf('%s: struct vs non-struct', f);
+                end
+                continue
+            end
+
+            [sub_ok, sub_worst, sub_detail] = compare_struct(A, B, tol);
+            if sub_worst > worst
+                worst = sub_worst;
+            end
+            if ~sub_ok
+                ok = false;
+                if isempty(detail)
+                    detail = sprintf('%s.%s', f, sub_detail);
+                end
+            end
+            continue
+        end
+
         if ischar(A) || isstring(A)
             if ~isequal(char(string(A)), char(string(B)))
                 ok = false;
