@@ -1,4 +1,4 @@
-function [a, phase, dadx, dady, d2adx2, d2ady2, d2adxdy] = compute_atom(...
+function [a, phase] = compute_atom(...
     x, ...
     y, ...
     u0, ...
@@ -65,25 +65,6 @@ function [a, phase, dadx, dady, d2adx2, d2ady2, d2adxdy] = compute_atom(...
     % reshape the sensing matrix to a vector
     a = reshape(a, [], 1); % M*L x 1
     phase = reshape(phase, [], 1); % M*L x 1
-
-    % calculate atom derivatives for newton's method and Gauss-Newton
-    gamma = -1j * 4 * pi * (fc + f_hat_l) / c;
-    gamma = gamma(:);
-    gamma = repelem(gamma, M, 1); % [ML x 1]
-
-    % determine the derivative of r wrt position
-    theta = repmat(theta_m, L, 1); % [ML x 1]
-    drdx = sin(theta);
-    drdy = cos(theta);
-    d2rdx2 = drdx .* drdx;
-    d2rdy2 = drdy .* drdy;
-    d2rdxdy = sin(theta) .* cos(theta);
-
-    dadx =      gamma       .* drdx     .* a; % [ML x 1]
-    dady =      gamma       .* drdy     .* a; % [ML x 1]
-    d2adx2 =    gamma.^2    .* d2rdx2   .* a; % [ML x 1]
-    d2ady2 =    gamma.^2    .* d2rdy2   .* a; % [ML x 1]
-    d2adxdy =   gamma.^2    .* d2rdxdy  .* a; % [ML x 1]
 
 end
 

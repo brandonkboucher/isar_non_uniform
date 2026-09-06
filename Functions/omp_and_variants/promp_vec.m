@@ -11,21 +11,48 @@
 % Each atom is defined as:
 % a = exp(-j * 2 * pi * (fc + \hat{f}) * \tau_{k}(t_{m}))
 
-function [alpha_hat, p_hat] = promp_vec( ...
+function [alpha_hat, p_hat, p_hat_hist] = promp_vec( ...
     s, ...          % measurement [ML x 1]
     A, ...          % sensing matrix [ML x K]
     Rs, ...         % number of Gauss-Newton steps per atom selection
-    Rc, ...         % unused by PROMP (the joint NLS replaces cyclic refinement)
     sparsity, ...   % sparsity
     xk, ...         % x position for each k-index [K]
     yk, ...         % y position for each k-index [K]
     u0, ...         % center of rotation
     theta_m, ...    % yaw angle as a function of time [M]
     f_hat_l, ...    % range-frequencies [L]
-    fc ...          % center frequency
+    fc, ...         % center frequency
+    options ...     % optional; .save_histories and .save_atom_idx
     )
 
     const = Constants;
+
+    % promp_vec is also called without options (isar_testing_v3 does), and the
+    % solver below is handed options unconditionally, so default it here
+    % rather than leaving the variable undefined
+    if nargin < 11 || ~isstruct(options)
+        options = struct();
+    end
+
+    % optionally record the per-step position of one atom, the same way
+    % nomp_vec does, so the two refinements can be compared step for step.
+    % PROMP refines every atom in the support jointly, so the traced atom
+    % keeps moving on every OMP iteration after the one that selected it.
+    save_histories = false; p_hat_hist = []; trace_idx = 0;
+    if nargin >= 11 && isstruct(options) ...
+            && isfield(options, 'save_histories') && options.save_histories
+
+        save_histories = true;
+
+        trace_idx = 1;
+        if isfield(options, 'save_atom_idx')
+            trace_idx = options.save_atom_idx;
+        end
+
+        % a hint only -- the history is trimmed to what was written
+        p_hat_hist = zeros(2, 1 + Rs * sparsity);
+    end
+    istep = 1;
 
     % the constraint of eq 20 is set to the conventional radar resolution. the
     % paper uses lambda/2 because for its single-frequency CW geometry that IS
@@ -86,9 +113,15 @@ function [alpha_hat, p_hat] = promp_vec( ...
         a = compute_atom(x0, y0, u0, theta_m, f_hat_l, fc, false);
         alpha_hat(iatom) = c(k) / (a' * a);
 
+        if save_histories && iatom == trace_idx
+            % the grid node the detection step picked for the traced atom
+            p_hat_hist(:, istep) = [x0; y0];
+            istep = istep + 1;
+        end
+
         % the refinement uses a non-linear least squares solver NLS, which
         % jointly refines every atom in the support against the measurement
-        [p_hat, alpha_hat] = promp_nls_solver(...
+        [p_hat, alpha_hat, p_trace] = promp_nls_solver(...
             s, ...          % measurement
             p_hat, ...      % previous estimates (i-1-th)
             x0, ...         % new coarse estimate in x-direction
@@ -101,12 +134,19 @@ function [alpha_hat, p_hat] = promp_vec( ...
             f_hat_l, ...    % [Hz] range-frequency
             fc, ...         % [Hz] radar center frequency
             zeta, ...                   % constraint, the conventional resolution per axis
-            p_anchor(:,1:iatom) ...     % grid nodes the constraint is measured from
-            );
+            p_anchor(:,1:iatom), ...    % grid nodes the constraint is measured from
+            trace_idx, ...               % atom whose per-step position is traced
+            options);
+
+        if save_histories && trace_idx >= 1 && trace_idx <= iatom
+            ns = size(p_trace, 2);
+            p_hat_hist(:, istep:istep+ns-1) = p_trace;
+            istep = istep + ns;
+        end
 
         % build the dictionary        
         AS = build_AS(...
-            p_hat(:,1:iatom), u0, theta_m, f_hat_l, fc);
+            p_hat(:,1:iatom), u0, theta_m, f_hat_l, fc, options.use_range_approx);
 
         r = s - AS * alpha_hat(1:iatom);
 
@@ -117,4 +157,20 @@ function [alpha_hat, p_hat] = promp_vec( ...
         progress_bar('PROMP', iatom, sparsity);
     end
     fprintf('\n');
+
+    % trim to what was written -- Gauss-Newton can converge before Rs steps
+    if save_histories
+        p_hat_hist = p_hat_hist(:, 1:istep-1);
+    end
 end
+
+
+
+
+
+
+
+
+
+
+

@@ -29,8 +29,11 @@ function pos = extract_target_positions(...
         % convert to row/col to find grid point
         [y_idx, x_idx] = ind2sub(size(image), scatterer_idx);
 
-        % form the position (x,y) pairs
-        pos = [x_array(x_idx).', y_array(y_idx).'];
+        % form the position (x,y) pairs. reshape rather than transpose: when
+        % y_array is a single range cell it is a scalar, and indexing a scalar
+        % returns the orientation of the index rather than of the source, so a
+        % bare transpose leaves the two halves inconsistent
+        pos = [reshape(x_array(x_idx), [], 1), reshape(y_array(y_idx), [], 1)];
 
 
     elseif strcmp(interpolation_type, 'linear') % assumes bp and/or dense

@@ -23,8 +23,11 @@ function out = isar_run_scenario(cfg, opts)
 %   is filled in from there.
 %
 %   out contains the formed images, the estimated and true positions, the
-%   per-algorithm error metrics, the plotting grids, and a sim_config struct
-%   matching the one written to the results spreadsheet.
+%   per-algorithm error metrics, the plotting grids, the measurement vector y,
+%   and a sim_config struct matching the one written to the results
+%   spreadsheet. It also carries the reconstruction dictionary A and the
+%   measurement sensing matrix as, so a caller can save or reuse them without
+%   having to have asked for them before the run.
 
     if nargin < 2 || isempty(opts)
         opts = struct();
@@ -53,16 +56,32 @@ function out = isar_run_scenario(cfg, opts)
     % GUI's trajectory preview cannot drift from the simulated motion
     traj  = isar_target_trajectory(cfg, opts);
     t_m   = traj.t_m;                    % [s] slow-time
-    t_hat = (0:(1/fs):(Tp - 1/fs)).';    % [s] fast-time
+    M     = size(t_m,1);                 % number of pulses
 
-    M = size(t_m,1);    % number of pulses
-    L = size(t_hat,1);  % number of fast-time samples
+    range_cell_mode = opts.range_cell_mode;
 
-    % define the range-frequency
-    df_l = (fs/L);
-    f_hat_l = (-L/2)*df_l:df_l:(L/2 - 1)*df_l;
+    if range_cell_mode
+        % One range cell: a single fast-time sample and a single range
+        % frequency. There is no bandwidth left to resolve range with, so the
+        % latent image collapses from a picture to a line in crossrange, and
+        % every scatterer sits in the one cell being imaged. Doppler is the
+        % only thing separating them, which is the point -- it isolates the
+        % ambiguity question from the range dimension entirely.
+        t_hat   = 0;
+        L       = 1;
+        f_hat_l = 0;
 
-    range_resolution = c / (2 * (max(f_hat_l) - min(f_hat_l))); % [m]
+        % no range resolution exists; the single cell is the whole extent
+        range_resolution = Inf;
+    else
+        t_hat = (0:(1/fs):(Tp - 1/fs)).';    % [s] fast-time
+        L     = size(t_hat,1);               % number of fast-time samples
+
+        df_l    = (fs/L);
+        f_hat_l = (-L/2)*df_l:df_l:(L/2 - 1)*df_l;
+
+        range_resolution = c / (2 * (max(f_hat_l) - min(f_hat_l))); % [m]
+    end
 
     %% target motion
     theta = traj.theta;
@@ -99,28 +118,43 @@ function out = isar_run_scenario(cfg, opts)
     end
 
     % redefine the grid in order to handle the number of ambiguous scatterers
-    Ny = Kr * opts.N_critical;
     Nx = Kc * n_amb_if * n_pix_per_amb;
+    Nx = Nx + (mod(Nx,2)==0);       % keep the number of pixels odd
 
-    % ensure the number of pixels is odd in both directions
-    Nx = Nx + (mod(Nx,2)==0);
-    Ny = Ny + (mod(Ny,2)==0);
+    if range_cell_mode
+        Ny = 1;                     % one cell, so one row
+        Kr = 1;
+        range_pixel_res = 1;        % nothing to scale; kept finite for the
+                                    % reports and the plotting limits
+    else
+        Ny = Kr * opts.N_critical;
+        Ny = Ny + (mod(Ny,2)==0);
+        range_pixel_res = range_resolution / Kr;
+    end
 
     K = Nx * Ny; % number of vectorized samples
 
-    range_pixel_res       = range_resolution / Kr;
     cross_range_pixel_res = cross_range_resolution / Kc;
 
     u0 = opts.u0; % [m] distance from the origin to the target center
 
     % range and crossrange grid of the latent image, centered on 0 so the
     % critical grid is a subset of the oversampled grid
-    y_array = ((0:Ny-1) - (Ny-1)/2) * range_pixel_res;
+    if range_cell_mode
+        y_array = opts.range_cell;      % the one cell being imaged
+    else
+        y_array = ((0:Ny-1) - (Ny-1)/2) * range_pixel_res;
+    end
     x_array = ((0:Nx-1) - (Nx-1)/2) * cross_range_pixel_res;
     [X,Y] = meshgrid(x_array,y_array);
 
     yk = reshape(Y, [], 1);
     xk = reshape(X, [], 1);
+
+    % a true scatterer an algorithm never reports is charged the crossrange
+    % width of the imaged scene, so declining to report a hard target cannot
+    % flatter the RMS. See calculate_reconstruction_error.
+    miss_penalty = max(x_array) - min(x_array);
 
     %% scatterer placement
     Ks = opts.Ks; % number of point scatterers
@@ -154,12 +188,20 @@ function out = isar_run_scenario(cfg, opts)
             (rand(Ks,1) - 0.5) * (y_array(end) - y_array(1)) ];
     end
 
+    % with a single range cell every scatterer is in it by construction, so
+    % the range coordinate is the cell itself rather than a random draw
+    if range_cell_mode
+        target_locations(:,2) = opts.range_cell;
+    end
+
     % On-Grid rows additionally snap onto the critically-sampled grid. The
     % ambiguity assignment above already happened, so on-grid scatterers are
     % distributed across ambiguities exactly like the off-grid ones.
     if ~is_off_grid
         target_locations(:,1) = round(target_locations(:,1)/cross_range_resolution) * cross_range_resolution;
-        target_locations(:,2) = round(target_locations(:,2)/range_resolution)       * range_resolution;
+        if ~range_cell_mode
+            target_locations(:,2) = round(target_locations(:,2)/range_resolution) * range_resolution;
+        end
     end
 
     % The latent image is supported only on the grid, which spans the first
@@ -234,7 +276,50 @@ function out = isar_run_scenario(cfg, opts)
 
         [x_hat.omp.error, x_hat.omp.pairs, x_hat.omp.missed, ...
             x_hat.omp.false_alarms, x_hat.omp.d] = ...
-            calculate_reconstruction_error(latent_locations, x_hat.omp.positions);
+            calculate_reconstruction_error(target_locations, x_hat.omp.positions, miss_penalty);
+    end
+
+    if opts.execute_mod_omp
+        progress_fcn(0.60, 'running modified OMP');
+
+        % mod-OMP keeps the one-block dictionary and recovers each atom's
+        % ambiguity index by testing its doppelgangers, so the latent image it
+        % returns is one grid image per ambiguity stacked along crossrange:
+        % [Ny, n_amb * Nx]
+        n_amb = n_amb_scat;
+
+        grid_s = struct( ...
+            'xk',                    xk, ...
+            'yk',                    yk, ...
+            'Wx',                    Wx, ...
+            'Nx',                    Nx, ...
+            'Ny',                    Ny, ...
+            'x_array',               x_array, ...
+            'y_array',               y_array, ...
+            'cross_range_pixel_res', cross_range_pixel_res);
+
+        x_hat_mod = mod_omp_vec(y, A, Ks_latent, grid_s, u0, theta, ...
+            f_hat_l, fc, n_amb, opts);
+
+        x_hat.mod_omp.image = reshape(x_hat_mod, Ny, n_amb * Nx);
+
+        % the ambiguity offsets in the order mod_omp_vec stacks them
+        kk = 0:(n_amb-1);
+        x_hat.mod_omp.amb_index = sort(ceil(kk/2) .* (-1).^kk);
+
+        % block j is the grid axis shifted by amb_index(j) unambiguous
+        % extents, so every column carries its true absolute crossrange
+        x_hat.mod_omp.x_array = reshape( ...
+            x_array(:) + x_hat.mod_omp.amb_index * Wx, 1, []);
+
+        x_hat.mod_omp.positions = extract_target_positions( ...
+            x_hat.mod_omp.image, x_hat.mod_omp.x_array, y_array, ...
+            Ks_latent, 'none');
+
+        [x_hat.mod_omp.error, x_hat.mod_omp.pairs, x_hat.mod_omp.missed, ...
+            x_hat.mod_omp.false_alarms, x_hat.mod_omp.d] = ...
+            calculate_reconstruction_error(target_locations, ...
+            x_hat.mod_omp.positions, miss_penalty);
     end
 
     if opts.execute_bp
@@ -254,33 +339,41 @@ function out = isar_run_scenario(cfg, opts)
 
         [x_hat.bp.error, x_hat.bp.pairs, x_hat.bp.missed, ...
             x_hat.bp.false_alarms, x_hat.bp.d] = ...
-            calculate_reconstruction_error(latent_locations, x_hat.bp.positions);
+            calculate_reconstruction_error(target_locations, x_hat.bp.positions, miss_penalty);
     end
 
     if opts.execute_nomp
         progress_fcn(0.78, 'running NOMP');
-        [alpha_hat, p_hat] = nomp_vec(y, A, opts.Rs, opts.Rc, Ks_latent, ...
-            xk, yk, u0, theta, f_hat_l, fc);
+        [alpha_hat, p_hat, p_hat_hist] = nomp_vec(y, A, opts.Rs, opts.Rc, ...
+            Ks_latent, xk, yk, u0, theta, f_hat_l, fc, opts);
 
         x_hat.nomp.positions = p_hat.';
         x_hat.nomp.alpha = alpha_hat;
 
+        % per-step position estimates for the traced atom, [nsteps x 2].
+        % empty unless opts.save_histories is set
+        x_hat.nomp.p_hat_hist = p_hat_hist.';
+
         [x_hat.nomp.error, x_hat.nomp.pairs, x_hat.nomp.missed, ...
             x_hat.nomp.false_alarms, x_hat.nomp.d] = ...
-            calculate_reconstruction_error(latent_locations, x_hat.nomp.positions);
+            calculate_reconstruction_error(target_locations, x_hat.nomp.positions, miss_penalty);
     end
 
     if opts.execute_promp
         progress_fcn(0.88, 'running PROMP');
-        [alpha_hat, p_hat] = promp_vec(y, A, opts.Rs, opts.Rc, Ks_latent, ...
-            xk, yk, u0, theta, f_hat_l, fc);
+        [alpha_hat, p_hat, p_hat_hist] = promp_vec(y, A, opts.Rs, Ks_latent, ...
+            xk, yk, u0, theta, f_hat_l, fc, opts);
 
         x_hat.promp.positions = p_hat.';
         x_hat.promp.alpha = alpha_hat;
 
+        % per-step position estimates for the traced atom, [nsteps x 2].
+        % empty unless opts.save_histories is set
+        x_hat.promp.p_hat_hist = p_hat_hist.';
+
         [x_hat.promp.error, x_hat.promp.pairs, x_hat.promp.missed, ...
             x_hat.promp.false_alarms, x_hat.promp.d] = ...
-            calculate_reconstruction_error(latent_locations, x_hat.promp.positions);
+            calculate_reconstruction_error(target_locations, x_hat.promp.positions, miss_penalty);
     end
 
     progress_fcn(0.98, 'collecting results');
@@ -288,7 +381,7 @@ function out = isar_run_scenario(cfg, opts)
     % summarize the reconstruction error for each algorithm that ran
     log_fcn(' ');
     log_fcn('  algorithm   RMS position error [m]');
-    for alg = ["omp" "nomp" "promp" "bp"]
+    for alg = ["omp" "mod_omp" "nomp" "promp" "bp"]
         if isfield(x_hat, alg) && isfield(x_hat.(alg), 'error')
             log_fcn(sprintf('  %-10s  %.4f', alg, x_hat.(alg).error));
         end
@@ -308,6 +401,9 @@ function out = isar_run_scenario(cfg, opts)
     out.is_latent             = is_latent;
     out.cfg                   = cfg;
     out.opts                  = opts;
+    out.y                     = y;
+    out.A                     = A;     % reconstruction dictionary, [ML x Nx*Ny]
+    out.as                    = as;    % measurement sensing matrix, [ML x Ks]
 
     out.sim_config = struct( ...
         'W_x_m',                Wx, ...
@@ -321,7 +417,8 @@ function out = isar_run_scenario(cfg, opts)
         'OversamplingFactor',   Kc, ...
         'NewtonSteps_Rs',       opts.Rs, ...
         'CyclicRefinements_Rc', opts.Rc, ...
-        'DopplerAliasing',      string(doppler_aliasing));
+        'DopplerAliasing',      string(doppler_aliasing), ...
+        'RangeCellMode',        string(range_cell_mode));
 
     progress_fcn(1, 'done');
 end

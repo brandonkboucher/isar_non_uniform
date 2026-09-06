@@ -1,5 +1,5 @@
 
-function [p_hat, alpha_hat] = promp_nls_solver(...
+function [p_hat, alpha_hat, p_trace] = promp_nls_solver(...
     measurement, ...  % measurement
     p, ...          % previous estimates (i-1-th) [2 x i-1]
     x0, ...         % new coarse estimate in x-direction
@@ -12,8 +12,27 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
     f_hat_l, ...    % [Hz] range-frequency
     fc, ...         % [Hz] radar center frequency
     zeta, ...       % [2 x 1] constraint bound, [crossrange; range]
-    p_anchor ...    % [2 x i] grid nodes the constraint is measured from
+    p_anchor, ...   % [2 x i] grid nodes the constraint is measured from
+    atom_save_idx, ...   % optional; index of the atom whose per-step position
+    options ...          % is returned in p_trace. 0 or omitted = do not record
     )
+
+    if nargin < 14 || isempty(atom_save_idx)
+        atom_save_idx = 0;
+    end
+
+    % the atoms and the Jacobian have to agree on the range model, or the
+    % Gauss-Newton step is taken against a gradient of a different function
+    use_range_approx = false;
+    if nargin >= 15 && isstruct(options) && isfield(options, 'use_range_approx')
+        use_range_approx = options.use_range_approx;
+    end
+
+    % the traced atom only exists once it has been selected, so there is
+    % nothing to record while atom_save_idx is beyond the current support
+    record  = atom_save_idx >= 1 && atom_save_idx <= i;
+    p_trace = zeros(2, h_max);
+    ntrace  = 0;
 
     const = Constants;
     c = const.c;
@@ -78,12 +97,16 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
             alpha_real = xi(4 * (k-1) + 1);
             alpha_imag = xi(4 * (k-1) + 2);
 
+            % for visual simplicity set a temporary x and y
+            tx = xi(4 * (k-1) + 3);
+            ty = xi(4 * (k-1) + 4);
+
             % determine the phase from the estimated position
             [a, phase] = ...
                 compute_atom(...
-                    xi(4 * (k-1) + 3), ... % x
-                    xi(4 * (k-1) + 4), ... % y
-                    u0, theta_m, f_hat_l, fc, false);
+                    tx, ... % x
+                    ty, ... % y
+                    u0, theta_m, f_hat_l, fc, use_range_approx);
             
             % divide into real and imaginary components
             zi = [alpha_real * cos(phase) - alpha_imag * sin(phase); ... % (eq30a)
@@ -97,7 +120,11 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
                 phase, ...
                 theta_m, ...
                 fc, ...
-                f_hat_l);
+                f_hat_l, ...
+                tx, ...
+                ty, ...
+                u0, ...
+                use_range_approx);
             
             % add to sensing matrix formulation
             A(:,k) = a;
@@ -142,7 +169,7 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
                 A(:,k) = compute_atom(...
                     xi(4 * (k-1) + 3), ...
                     xi(4 * (k-1) + 4), ...
-                    u0, theta_m, f_hat_l, fc, false);
+                    u0, theta_m, f_hat_l, fc, use_range_approx);
             end
 
             alpha = A \ measurement;
@@ -154,6 +181,14 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
 
         end
 
+        % record the traced atom's position at the end of this step, after
+        % any clamping, so the last step is captured even when the loop breaks
+        if record
+            ntrace = ntrace + 1;
+            p_trace(:,ntrace) = [xi(4 * (atom_save_idx-1) + 3); ...
+                                 xi(4 * (atom_save_idx-1) + 4)];
+        end
+
         % terminate once the position update is small relative to the
         % positions themselves
         if norm(delta(pos_idx)) / norm(xi(pos_idx)) < 1e-3
@@ -162,6 +197,9 @@ function [p_hat, alpha_hat] = promp_nls_solver(...
 
     end
     
+    % hand back only the steps that were actually taken
+    p_trace = p_trace(:, 1:ntrace);
+
     % extract the final estimates (eq 22)
     p_hat = zeros(2, i);
     alpha_hat = zeros(i, 1);
