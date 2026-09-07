@@ -1,0 +1,24 @@
+
+\chapter{Literature Review}
+
+
+
+\section{Off-Grid Methods}
+
+\subsection{Atomic Norm Minimization}
+
+\subsection{Sparse Bayesian Learning}
+
+\subsection{Learning-Based Approaches}
+
+\section{Doppler Ambiguity Methods}
+
+\begin{itemize}
+\item "Doppler ambiguity removal and ISAR imaging of group targets with sparse decomposition" (2016) by Darong Huang, et al. motivates through group targets where a set of rigid or non-rigid scatterers are within the same narrow beam. Traditional methods include Time-Frequency and signal separation via Doppler frequencies \cite{Huang2016}. \cite{Huang2016} suggests there are benefits to low PRFs like ensuring there is a long unambiguous range measurement and a reduced side lobe effect. \cite{Huang2016} uses a different phase progression to differentiate ambiguities through differences in the range-azimuth coupling term which varies significantly between ambiguities. \cite{Huang2016} defines an objective function where Fourier based atoms are applied to a range-cell measurement. The atoms are a function of the angular rotation, chirp rate and ambiguity and selected using OMP. After selecting the atoms and calculating the corresponding complex coefficients, \cite{Huang2016} removes the Doppler ambiguity and corrects MTRC. The range-cell migration is primarily driven through the introduction of the chirp rate which needs to be calculated using the estimate of the Doppler frequency and the ambiguity. \cite{Huang2016} does not assume any rotational acceleration, assumes a uniform grid and jointly estimates the Doppler frequency, the chirping rate and the Doppler ambiguity.  
+\end{itemize}
+
+\subsection{Compressed Sensing}
+
+\section{Doppler Ambiguity and Off-Grid Methods}
+
+
