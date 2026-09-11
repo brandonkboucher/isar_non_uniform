@@ -236,9 +236,9 @@ function isar_gui()
     function build_run_controls(parent)
 
         p = uipanel(parent, 'Title', 'Run');
-        g = uigridlayout(p, [10 2]);
+        g = uigridlayout(p, [11 2]);
         g.ColumnWidth = {'1x', '1x'};
-        g.RowHeight   = {32, 26, 26, 26, 26, 26, 26, 26, 26, 'fit'};
+        g.RowHeight   = {32, 26, 26, 26, 26, 26, 26, 26, 26, 26, 'fit'};
 
         S.runButton = uibutton(g, 'Text', 'Run scenario', ...
             'FontWeight', 'bold', 'ButtonPushedFcn', @on_run);
@@ -250,6 +250,11 @@ function isar_gui()
         uilabel(g, 'Text', 'Dynamic range [dB]');
         S.dynRangeField = uieditfield(g, 'numeric', 'Value', 60, ...
             'ValueChangedFcn', @(~,~) redraw_images());
+
+        uilabel(g, 'Text', 'Panel layout');
+        S.layoutField = uieditfield(g, 'text', 'Value', 'auto', ...
+            'Tooltip', 'auto, or rows x columns such as 1 x 3', ...
+            'ValueChangedFcn', @(src,~) on_layout_change(src));
 
         uilabel(g, 'Text', 'Ambiguities');
         S.ambViewCheck = uicheckbox(g, 'Text', 'show -1, 0, +1', ...
@@ -612,7 +617,7 @@ function isar_gui()
         % the formed images, rendered the same way as the popped out figure
         panels = result_panels(out.x_hat);
         n      = size(panels, 1);
-        [rows, cols] = panel_geometry(n);
+        [rows, cols] = panel_geometry(n, parse_layout(S.layoutField.Value));
 
         f = figure('Visible', 'off', 'Position', [100 100 520*cols 520*rows]);
         restore_fig = onCleanup(@() close(f));
@@ -721,6 +726,17 @@ function isar_gui()
 
 %% ------------------------------------------------------------ plotting
 
+    function on_layout_change(src)
+    % Snap an unparseable entry back to 'auto' so a typo is visible rather
+    % than silently ignored.
+
+        txt = strtrim(char(string(src.Value)));
+        if ~any(strcmpi(txt, {'auto', ''})) && isequal(parse_layout(txt), [0 0])
+            src.Value = 'auto';
+        end
+        redraw_images();
+    end
+
     function redraw_images()
 
         if isempty(S.last)
@@ -751,7 +767,7 @@ function isar_gui()
             return
         end
 
-        [rows, cols] = panel_geometry(n);
+        [rows, cols] = panel_geometry(n, parse_layout(S.layoutField.Value));
         grid.RowHeight   = repmat({'1x'}, 1, rows);
         grid.ColumnWidth = repmat({'1x'}, 1, cols);
 
@@ -907,7 +923,7 @@ function isar_gui()
             return
         end
 
-        [rows, cols] = panel_geometry(n);
+        [rows, cols] = panel_geometry(n, parse_layout(S.layoutField.Value));
         f = figure('Name', scenario_title(out.cfg), ...
             'Position', [100 100 520*cols 520*rows]);
         for i = 1:n
@@ -1109,9 +1125,52 @@ function panels = result_panels(x_hat, want_mode)
     end
 end
 
-function [rows, cols] = panel_geometry(n)
-    rows = 1 + (n > 2);
-    cols = ceil(n / max(rows, 1));
+function [rows, cols] = panel_geometry(n, layout)
+% PANEL_GEOMETRY  Subplot grid for N panels.
+%
+%   PANEL_GEOMETRY(n) picks a shape automatically. PANEL_GEOMETRY(n, [R C])
+%   honours a requested one, where a zero means "you choose". A request that
+%   is too small to hold every panel is grown rather than obeyed, since
+%   dropping a result silently would be worse than ignoring the request.
+
+    if nargin < 2 || isempty(layout) || all(layout <= 0)
+        rows = 1 + (n > 2);
+        cols = ceil(n / max(rows, 1));
+        return
+    end
+
+    rows = layout(1);
+    cols = layout(2);
+
+    if rows > 0 && cols <= 0
+        cols = ceil(n / rows);
+    elseif cols > 0 && rows <= 0
+        rows = ceil(n / cols);
+    elseif rows * cols < n
+        cols = ceil(n / rows);
+    end
+
+    rows = max(rows, 1);
+    cols = max(cols, 1);
+end
+
+function layout = parse_layout(txt)
+% PARSE_LAYOUT  Read a layout request as [rows cols]; [0 0] means automatic.
+%
+%   Accepts 'auto', an empty string, or a pair in any of the forms
+%   '1 x 3', '1x3', '1,3', '1 3'. Anything else is treated as automatic.
+
+    layout = [0 0];
+
+    t = strtrim(lower(char(string(txt))));
+    if isempty(t) || strcmp(t, 'auto')
+        return
+    end
+
+    v = sscanf(strrep(strrep(t, 'x', ' '), ',', ' '), '%d %d');
+    if numel(v) == 2 && all(v >= 0) && any(v > 0)
+        layout = v(:).';
+    end
 end
 
 function e = pick_error(x_hat, alg, algs)
@@ -1406,13 +1465,23 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
     resolves_ambiguity = ~isempty(est_x) ...
         && (min(est_x) < min(x_array) || max(est_x) > max(x_array));
 
+    % Which scatterers this panel's image former could represent. It depends
+    % on the span THIS algorithm was given, not on the scenario's: with OMP
+    % set to three ambiguities and the scenario at one, the panel spans three
+    % bands and must draw the truth sitting in all of them.
+    if isfield(r, 'is_latent') && ~isempty(r.is_latent)
+        panel_latent = logical(r.is_latent(:));
+    else
+        panel_latent = true(size(out.target_locations, 1), 1);
+    end
+
     % with the wider view the neighbouring bands are on screen, so every
     % scatterer can be drawn where it actually is rather than only the ones
     % the image former covers
     if show_ambiguities || resolves_ambiguity
         truth = out.target_locations;
     else
-        truth = out.latent_locations;
+        truth = out.target_locations(panel_latent, :);
     end
     true_x = truth(:, 1);
     true_y = truth(:, 2) + u0;
@@ -1429,8 +1498,11 @@ function draw_panel(ax, alg, mode, out, log_scale, dyn_range, show_ambiguities, 
         Wx  = out.sim_config.W_x_m;
         amb = out.amb_of_k(:);
         n   = min(numel(amb), size(out.target_locations, 1));
-        sel = false(n, 1);
-        sel(1:n) = amb(1:n) ~= 0;      % ambiguity 0 folds onto itself
+
+        % a scatterer is a ghost on THIS panel only if the panel's span cannot
+        % represent it. On a three-ambiguity panel the +/-1 scatterers are
+        % imaged directly, so marking them as aliased would be wrong.
+        sel = ~panel_latent(1:n);
 
         if any(sel)
             alias_x = out.target_locations(sel, 1) - amb(sel) * Wx;

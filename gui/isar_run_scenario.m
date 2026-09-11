@@ -269,6 +269,17 @@ function out = isar_run_scenario(cfg, opts)
     Ks_latent        = Ks;
     latent_locations = target_locations(is_latent, :);
 
+    % Algorithms can be given different ambiguity spans, so "which scatterers
+    % are representable" is a per-span question, not a per-scenario one. The
+    % plots need it per algorithm: a panel spanning three ambiguities has to
+    % draw the truth in all three, not only the band the scenario named.
+    latent_by_span = struct();
+    for v = spans(:).'
+        jv = 0:(v-1);
+        latent_by_span.(span_key(v)) = ...
+            ismember(amb_of_k, ceil(jv/2) .* (-1).^jv);
+    end
+
     % determine if Doppler aliasing will occur
     theta_dot = w0 + w1*t_m + w2*t_m.^2;
     fd_max = max((2*fc/c) * abs(target_locations(:,1)) * max(abs(theta_dot)));
@@ -372,6 +383,7 @@ function out = isar_run_scenario(cfg, opts)
         % actually given, since those axes now differ between algorithms
         x_hat.omp.x_array  = g.x_array;
         x_hat.omp.n_amb_if = g.n_amb_if;
+        x_hat.omp.is_latent = latent_by_span.(span_key(g.n_amb_if));
 
         x_hat.omp.positions = extract_target_positions( ...
             x_hat.omp.image, g.x_array, y_array, Ks_latent, 'none');
@@ -418,6 +430,7 @@ function out = isar_run_scenario(cfg, opts)
         x_hat.mod_omp.alpha     = alpha_hat;
         x_hat.mod_omp.x_array   = g.x_array;
         x_hat.mod_omp.n_amb_if  = g.n_amb_if;
+        x_hat.mod_omp.is_latent = latent_by_span.(span_key(g.n_amb_if));
 
         % carried for the plots: the unambiguous crossrange band
         x_hat.mod_omp.Wx        = Wx;
@@ -438,6 +451,7 @@ function out = isar_run_scenario(cfg, opts)
 
         x_hat.bp.x_array  = g.x_array;
         x_hat.bp.n_amb_if = g.n_amb_if;
+        x_hat.bp.is_latent = latent_by_span.(span_key(g.n_amb_if));
 
         if is_off_grid
             interpolation_type = 'linear';
@@ -464,6 +478,7 @@ function out = isar_run_scenario(cfg, opts)
         x_hat.nomp.alpha = alpha_hat;
         x_hat.nomp.x_array  = g.x_array;
         x_hat.nomp.n_amb_if = g.n_amb_if;
+        x_hat.nomp.is_latent = latent_by_span.(span_key(g.n_amb_if));
 
         % per-step position estimates for the traced atom, [nsteps x 2].
         % empty unless opts.save_histories is set
@@ -485,6 +500,7 @@ function out = isar_run_scenario(cfg, opts)
         x_hat.promp.alpha = alpha_hat;
         x_hat.promp.x_array  = g.x_array;
         x_hat.promp.n_amb_if = g.n_amb_if;
+        x_hat.promp.is_latent = latent_by_span.(span_key(g.n_amb_if));
 
         % per-step position estimates for the traced atom, [nsteps x 2].
         % empty unless opts.save_histories is set

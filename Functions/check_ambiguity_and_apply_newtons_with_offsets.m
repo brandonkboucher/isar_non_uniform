@@ -43,6 +43,7 @@ function [selected_a, selected_ambiguity,...
     selected_a         = [];
     selected_ambiguity = 0;
     selected_x         = x0;
+    selected_y         = y0;
 
     % iterate over each ambiguity and each neighborhood
     for iamb = 1:num_of_amb
@@ -83,10 +84,14 @@ function [selected_a, selected_ambiguity,...
                 best_c             = ck;
                 selected_a         = ak;
                 selected_ambiguity = amb_index(iamb);
-                selected_x         = xk;
+
+                % both coordinates come from the winning refinement. Assigning
+                % the range outside the loops would report whichever seed
+                % happened to be evaluated last, not the one selected.
+                selected_x         = p_hat(1);
+                selected_y         = p_hat(2);
             end
         end
     end
-    selected_y = y0;
 end
 
