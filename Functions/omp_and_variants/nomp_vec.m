@@ -147,7 +147,9 @@ function [alpha_hat, p_hat, p_hat_hist] = nomp_vec( ...
             error('OMP has nans.')
         end
 
-        progress_bar('NOMP', iatom, sparsity);
+        if options.debug_printing
+            progress_bar('NOMP', iatom, sparsity);
+        end
 
         % the residual has reached the noise level
         if norm(r) <= tau
@@ -155,7 +157,10 @@ function [alpha_hat, p_hat, p_hat_hist] = nomp_vec( ...
             break
         end
     end
-    fprintf('\n');
+    
+    if options.debug_printing
+        fprintf('\n');
+    end
 
     % an early stop leaves the tail of the preallocated arrays untouched
     p_hat     = p_hat(:, 1:n_kept);

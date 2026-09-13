@@ -10,75 +10,12 @@
 % restrictive isometry property and the probability of a 
 % successful reconstruction.
 
-
 clear
 clc
-rng(0)
 
-%% options
-
-options.calculate_mutual_coherence  = false;
-options.log_scale_plotting          = true;
-
-% backprojection, sbl and itsa
-options.execute_bp                  = true;
-options.execute_itsa                = false;
-options.execute_sbl                 = false;
-
-% orthogonal matching pursuit and related algorithms
-options.execute_omp                 = true;
-options.execute_nomp                = true;
-options.execute_promp               = true;
-options.execute_mod_omp             = true;
-options.execute_mod_omp_with_promp  = false;
-
-options.save_results                = true;
-options.save_plots                  = true;
-options.save_histories              = true; % only for one scatterer
-options.save_atom_idx               = 1; % only if save_histories and must be less than sc.num_of_scatterers
-
-if options.save_plots
-    delete('plots/*')
-end
-
-% use the linearized range model of Cheng et al. (2019) eq (1) throughout
-% (both the measurement atoms `as` and the reconstruction dictionary `a`);
-% false = exact range geometry. See compute_atom.m.
-options.use_range_approx             = false;
-
-% ---------------- testing ------------------
-options.manual_close_spacing        = false;
-options.manual_maneuvering_target   = false;
-
-%% scenario parameters
-
-% define target parameters
-sc.num_of_scatterers            = 10;
-
-sc.is_target_accelerating       = true;
-sc.is_target_maneuvering        = false;
-sc.is_grid_oversampled          = true;
-sc.is_closely_spaced            = false;
-sc.is_off_grid                  = false;
-sc.num_amb_having_scatterers    = 1;
-sc.num_amb_in_image_former      = 1;
-
-sc.yaw_acceleration             = 170;  % [rad/s/s]
-sc.yaw_jerk                     = 0;    % [rad/s/s/s]
-sc.target_magnitude             = 5;
-
-% SNR in dB for the additive white complex Gaussian noise, or [] for a
-% noiseless measurement. Nguyen et al. stop every algorithm when the signal
-% residual reaches the noise level (Sec IV-A), so that criterion needs a noise
-% level to exist: leave this empty and the pursuits run to the sparsity cap
-% instead, which is what they have always done here.
-sc.snr_db                       = [];
-
-sc.num_optimization_steps   = 4;
-sc.num_optimization_cycles  = 2; % only NOMP
-sc.oversampling_factor      = 4;
-sc.optimization_method      = 'newtons_and_offset'; % only mod-OMP, 'newtons' or 'offset'
-sc.num_offsets_pixels       = 10; % only mod-OMP 'newtons_and_offset'
+% create scenario and option structs
+[sc, options, radar] = create_scenario();
+rng(options.seed)
 
 %% radar parameters
 
@@ -86,39 +23,16 @@ sc.num_offsets_pixels       = 10; % only mod-OMP 'newtons_and_offset'
 const = Constants;
 c = const.c;
 
-% define the dimensionality of the phase-history
-Nd = 16;
-
-fc      = 30 * const.GHz2Hz; % [Hz] center frequency - Ka-band
-B       = 149.9 * const.MHz2Hz; % [Hz] bandwidth, not used
-prf     = 6000; % [Hz] pulse repetition frequency
-fs      = 300 * const.MHz2Hz; % [Hz] sampling frequency
-
-lambda  = c / fc; % [m] wavelength
-
-Tp = (1/fs) * Nd; % [s] pulse width
-T = (1/prf) * Nd; % [s] simulation duration
-
-t_m = (0:(1/prf):(T - 1/prf)).'; % [s] slow-time
-t_hat = (0:(1/fs):(Tp - 1/fs)).'; % [s] fast-time
+t_m         = (0:(1/radar.prf):(radar.T - 1/radar.prf)).'; % [s] slow-time
+t_hat       = (0:(1/radar.fs):(radar.Tp - 1/radar.fs)).'; % [s] fast-time
+range_array = t_hat .* const.c / 2;
 
 M = size(t_m,1); % number of pulses
 L = size(t_hat,1); % number of fast-time samples
 
 % define the range-frequency using the 
-df_l = (fs/L);
+df_l    = (radar.fs/L);
 f_hat_l = (-L/2)*df_l:df_l:(L/2 - 1)*df_l;
-
-range_array = t_hat .* const.c / 2;
-
-% define the latent image grid dimensions
-% Range is bounded by its own ambiguity, exactly as crossrange is bounded by
-% Wx. The range-frequency samples are spaced df = fs/L, which makes the
-% unambiguous range window c/(2*df) -- and that window holds L-1 range
-% resolution cells regardless of fs. A grid taller than this folds in range:
-% at N_critical = 41 the grid spanned 2.7 windows, so scatterers aliased in
-% range (coherence 0.998) as well as in crossrange.
-N_critical = 15; % range cells, must be <= L = size(t_hat,1)
 
 % create target scatterers and grid
 [sc,target_locations, grid, theta_m, ...
@@ -126,11 +40,11 @@ N_critical = 15; % range cells, must be <= L = size(t_hat,1)
     = create_target_and_grid(...
         sc, ...         % scenario parameters
         t_m, ...        % [s] (M x 1) slow-time
-        fc, ...         % [Hz] center frequency
-        prf, ...        % [Hz] pulse repetition frequency
+        radar, ...
         f_hat_l, ...    % [Hz] (L x 1) range-frequency
-        N_critical ...  % dimension in x and y (for critically sampled)
+        options ...
         );
+
 K = size(grid.xk,1);
 
 % A scatterer an algorithm never reports is charged the crossrange width of
@@ -149,7 +63,7 @@ for k = 1:sc.num_of_scatterers
         u0, ...
         theta_m, ...
         f_hat_l, ...
-        fc, ...
+        radar.fc, ...
         options.use_range_approx);
 
     as(:,k) = ak;
@@ -161,14 +75,14 @@ fprintf('\n')
 % compute dictionary for reconstruction
 A = zeros(M*L,K);
 for k = 1:K
-    
+
     ak = compute_atom(...
         grid.xk(k), ...
         grid.yk(k), ...
         u0, ...
         theta_m, ...
         f_hat_l, ...
-        fc, ...
+        radar.fc, ...
         options.use_range_approx);
 
     % the reconstruction dictionary (grid atoms) is A; the off-grid scatterer
@@ -179,15 +93,16 @@ for k = 1:K
         progress_bar('A matrix', k, K)
     end
 end
-
-% print matrix dimensions and conditioning
 fprintf('\n')
-fprintf(['A has dimension ', num2str(size(A,1)), ' by ', num2str(size(A,2)), '\n'])
-fprintf(['A has a rank of ', num2str(rank(A)), '\n'])
+
+if options.debug_printing
+    fprintf(['A has dimension ', num2str(size(A,1)), ' by ', num2str(size(A,2)), '\n'])
+    fprintf(['A has a rank of ', num2str(rank(A)), '\n'])
+end
 
 % calculate the measurement: superpose the exact phase histories of the
 % off-grid scatterers (each column of `as` is one scatterer's response).
-alpha_s = sc.target_magnitude * ones(sc.num_of_scatterers,1);       % complex scattering amplitudes (unit for now)
+alpha_s = sc.target_magnitude * ones(sc.num_of_scatterers,1);   % complex scattering amplitudes
 y = as * alpha_s;           % = sum_k alpha_s(k) * as(:,k)
 
 % additive white complex Gaussian noise, and the residual level the pursuits
@@ -206,6 +121,8 @@ end
 Y = reshape(y, M, L);
 
 %% output
+x_hat = struct();
+
 if options.calculate_mutual_coherence
     mu_mat = calculate_mutual_coherence(...
         A,...
@@ -234,7 +151,7 @@ if isfield(options, 'execute_mod_omp') ...
         u0, ...
         theta_m, ...
         f_hat_l, ...
-        fc, ...
+        radar.fc, ...
         n_amb, ...
         sc, ...
         options ...
@@ -329,7 +246,7 @@ if isfield(options, 'execute_promp') ...
         u0, ...                         % center of rotation
         theta_m, ...                    % yaw angle as a function of time [M]
         f_hat_l, ...                    % range-frequencies [L]
-        fc, ...                          % center frequency
+        radar.fc, ...                    % center frequency
         options);
 
     x_hat.promp.positions = p_hat.';
@@ -359,7 +276,7 @@ if isfield(options, 'execute_nomp') ...
         u0, ...
         theta_m, ...
         f_hat_l, ...
-        fc, ...
+        radar.fc, ...
         options);
 
     x_hat.nomp.positions = p_hat.';
@@ -376,14 +293,16 @@ if isfield(options, 'execute_nomp') ...
 
 end
 
-% summarize the reconstruction error for each algorithm that ran
-fprintf('\n  algorithm   RMS position error [m]\n');
-for alg = ["omp" "mod_omp" "nomp" "promp" "bp"]
-    if isfield(x_hat, alg) && isfield(x_hat.(alg), 'error')
-        fprintf('  %-10s  %.4f\n', alg, x_hat.(alg).error);
+if options.debug_printing
+    % summarize the reconstruction error for each algorithm that ran
+    fprintf('\n  algorithm   RMS position error [m]\n');
+    for alg = ["omp" "mod_omp" "nomp" "promp" "bp"]
+        if isfield(x_hat, alg) && isfield(x_hat.(alg), 'error')
+            fprintf('  %-10s  %.4f\n', alg, x_hat.(alg).error);
+        end
     end
+    fprintf('\n');
 end
-fprintf('\n');
 
 if options.save_plots
 

@@ -1,0 +1,24 @@
+
+\section{Results}
+\label{sec:results}
+
+Section \ref{sec:coherence} reviews the effects of non-uniform phase progression on the coherence of the unambiguous and ambiguous atoms. Section \ref{sec:rmse} compares the positional and coefficient root mean squared error relative to other OMP-based algorithms used for off-grid imaging and Doppler ambiguity correction.
+
+\subsection{Non-uniform sampling coherence}
+\label{sec:coherence}
+
+As mentioned in Section \ref{sec:methods}, non-uniform motion and subsequently, non-uniform phase progression is often seen as a hinderance. Non-uniform motion can introduce phase errors if not approximated and compensated for correctly. However, there is a plethora of literature on translational motion compensation, rotational motion compensation, and autofocus literature capable of target motion estimation. If the motion parameters are assumed to be known, they provide valuable information which can be leveraged to differentiate unambiguous and ambiguous atoms. One measure of the ability to differentiate dictionary atoms is coherence. Coherence is inner product between two atoms, $a_{i}^{H}a_{j}$, and represents the similarity between those vectors. Mutual coherence is the maximum coherence between any pair of atoms and has been used as a measure of atom differntiation in CS [\textbf{cite}]. The mutual coherence is the coherence between atoms within the sensing matrix, and is defined as:
+
+\begin{equation}
+    M = \max_{0 \leq i \neq j \leq K-1} |a^{H}_{i}a_{j}|
+\end{equation}
+
+To characterize and quantify the amount of help non-uniform phase progression provides, the mutual coherence of the sensing matrix was calculated as a function of the motion parameters.
+
+\subsection{RMSE}
+\label{sec:rmse}
+
+To test the effectiveness of Doppler ambiguity and , 
+
+\subsection{Noise assessment}
+\label{sec:noise}

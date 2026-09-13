@@ -1,0 +1,45 @@
+\documentclass[]{spie}  %>>> use for US letter paper
+%\documentclass[a4paper]{spie}  %>>> use this instead for A4 paper
+%\documentclass[nocompress]{spie}  %>>> to avoid compression of citations
+
+\renewcommand{\baselinestretch}{1.0} % Change to 1.65 for double spacing
+ 
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\title{2D ISAR Modified Orthogonal Matching Pursuit for Doppler-Ambiguous and Off-grid Target Scatterers}
+
+\author[a]{Brandon Boucher}
+\author[b]{Mike Davis}
+\author[b]{Greg Showman}
+\author[b]{Dan Cook}
+\author[a]{Justin Romberg}
+\affil[a]{Georgia Institute of Technology, 225 North Avenue, Atlanta, US}
+\affil[b]{Georgia Tech Research Institute, 250 14th Street, Atlanta, US}
+
+\authorinfo{Further author information: (Send correspondence to Brandon Boucher)\\Brandon Boucher: E-mail: bboucher9@gatech.edu, Telephone: 1 720 443 8892\\  B.B.A.: E-mail: bba@cmp.com, Telephone: +33 (0)1 98 76 54 32}
+
+% Option to view page numbers
+\pagestyle{empty} % change to \pagestyle{plain} for page numbers   
+\setcounter{page}{301} % Set start page numbering at e.g. 301
+ 
+\begin{document} 
+\maketitle
+
+\input{sections/abstract.tex}
+\input{sections/introduction.tex}
+\input{sections/background.tex}
+\input{sections/methods.tex}
+\input{sections/results.tex}
+\input{sections/discussion.tex}
+\input{sections/conclusion.tex}
+
+
+% References
+\bibliography{bib} % bibliography data in report.bib
+\bibliographystyle{spiebib} % makes bibtex use spiebib.bst
+
+\end{document} 

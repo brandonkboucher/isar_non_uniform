@@ -6,14 +6,17 @@ function [sc,target_locations, ...
         = create_target_and_grid(...
         sc, ...         % scenario parameters
         t_m, ...        % [s] (M x 1) slow-time
-        fc, ...         % [Hz] center frequency
-        prf, ...        % [Hz] pulse repetition frequency
+        radar, ...      % radar parameters, fc and prf       
         f_hat_l, ...    % [Hz] (L x 1) range-frequency
-        N_critical ...  % dimension in x and y (for critically sampled)
+        options ...     % options for scenario
         )
 
     const = Constants();
     c = const.c;
+
+    fc  = radar.fc;     % [Hz] center frequency
+    prf = radar.prf;    % [Hz] pulse repetition frequency
+    N_critical = sc.N_critical; % dimension in x and y (for critically sampled)
 
     %% target definition
 
@@ -66,11 +69,11 @@ function [sc,target_locations, ...
     end
 
     [range_resolution,cross_range_resolution] = ...
-    calculate_resolution(...
-        theta, ...      % [M x 1] yawing angle as function of slow-time
-        f_hat_l, ...    % [L x 1] range-frequency
-        fc...           % (Hz) center frequency
-        );
+        calculate_resolution(...
+            theta, ...      % [M x 1] yawing angle as function of slow-time
+            f_hat_l, ...    % [L x 1] range-frequency
+            fc...           % (Hz) center frequency
+            );
 
     % define the crossrange unambiguous extent, this is the extent at which the 
     % crossrange is unambiguous. if a scatterer's crossrange exceeds this extent
@@ -190,83 +193,85 @@ function [sc,target_locations, ...
 
     fd_max = max((2*fc/c) * abs(target_locations(:,1)) * max(abs(theta_dot)));
     
-    fprintf('Targets located at: \n')
-    disp(target_locations)
-
     is_doppler_aliasing = false;
     if fd_max > prf/2
-        disp('Doppler aliasing will occur')
+        if options.debug_printing
+            disp('Doppler aliasing will occur')
+        end
         is_doppler_aliasing = true;
     else
-        disp('No Doppler aliasing')
-    end
-
-    % --- is the range grid inside its own unambiguous window? ------------
-    % The range-frequency spacing df sets an unambiguous range c/(2*df), the
-    % range-domain counterpart of Wx. A taller grid folds in range.
-    df_bin = f_hat_l(2) - f_hat_l(1);
-    Ru = c / (2 * df_bin);
-    grid.Ru = Ru;
-    y_extent = max(y_array) - min(y_array);
-    fprintf('unambiguous range window %.2f m; range grid spans %.2f m (%.2f windows)\n', ...
-        Ru, y_extent, y_extent/Ru);
-    if y_extent > Ru
-        warning(['the range grid is taller than the unambiguous range window, ' ...
-            'so scatterers will alias in range as well as crossrange. ' ...
-            'Reduce N_critical to at most L = numel(f_hat_l).']);
-    end
-
-    % --- is that ambiguity genuine, or smeared away? ----------------------
-    % Aliasing requires the atom Wx away in crossrange to reproduce the
-    % scatterer's own atom. A wide fractional bandwidth breaks it (each range
-    % bin folds at its own Wx(f) = c*prf/(2*(fc+f)*w0)), and so does a target
-    % that is not compact in range relative to u0 (rotation-induced range
-    % migration). Measure the ghost coherence rather than assume it.
-    Wx_per_bin = c * prf ./ (2 * (fc + f_hat_l) * mean(w0));
-    grid.Wx_per_bin = Wx_per_bin;
-
-    % Scan for the ghost rather than assuming it sits at exactly x + Wx. Yaw
-    % acceleration does not destroy the alias, it moves it: the effective fold
-    % distance is set by the mean rotation rate over the aperture, so the ghost
-    % drifts from Wx as w1 grows (measured 0.2 pixels at w1 = 0 and 4.3 pixels
-    % at w1 = 170 rad/s/s). The peak coherence is what governs whether the
-    % ambiguity can be resolved; its displacement is what the ambiguity check's
-    % search window (options.amb_refine_pixels) has to cover.
-    scan = (-8:0.25:8) * cross_range_pixel_res;
-    ghost_coherence = zeros(Ks,1);
-    ghost_offset_px = zeros(Ks,1);
-    for k = 1:Ks
-        ak = compute_atom(target_locations(k,1), target_locations(k,2), ...
-            u0, theta, f_hat_l, fc, false);
-        ak = ak / norm(ak);
-        cg = zeros(numel(scan),1);
-        for is = 1:numel(scan)
-            gk = compute_atom(target_locations(k,1) + Wx + scan(is), ...
-                target_locations(k,2), u0, theta, f_hat_l, fc, false);
-            cg(is) = abs(gk' * ak) / norm(gk);
+        if options.debug_printing
+            disp('No Doppler aliasing')
         end
-        [ghost_coherence(k), ipk] = max(cg);
-        ghost_offset_px(k) = scan(ipk) / cross_range_pixel_res;
-    end
-    grid.ghost_coherence = ghost_coherence;
-    grid.ghost_offset_px = ghost_offset_px;
-
-    fprintf('ghost peak coherence per scatterer: %s\n', ...
-        num2str(ghost_coherence.', '%.3f  '));
-    fprintf(['ghost displaced from +Wx by: %s pixels ' ...
-        '-> set options.amb_refine_pixels >= %d\n'], ...
-        num2str(ghost_offset_px.', '%+.2f  '), ...
-        max(1, ceil(max(abs(ghost_offset_px)) + 1)));
-
-    fprintf(['fractional bandwidth %.3f -> fold distance %.2f to %.2f m ' ...
-        '(%.1f crossrange cells of spread)\n'], ...
-        (max(f_hat_l) - min(f_hat_l))/fc, min(Wx_per_bin), max(Wx_per_bin), ...
-        (max(Wx_per_bin) - min(Wx_per_bin)) / cross_range_resolution);
-    if any(ghost_coherence < 0.8)
-        warning(['the Doppler ambiguity is broken for at least one scatterer, ' ...
-            'so it will smear rather than alias. Reduce the fractional ' ...
-            'bandwidth and/or keep the target compact in range relative to u0.']);
     end
 
+    if options.debug_printing
+        % --- is the range grid inside its own unambiguous window? ------------
+        % The range-frequency spacing df sets an unambiguous range c/(2*df), the
+        % range-domain counterpart of Wx. A taller grid folds in range.
+        df_bin = f_hat_l(2) - f_hat_l(1);
+        Ru = c / (2 * df_bin);
+        grid.Ru = Ru;
+        y_extent = max(y_array) - min(y_array);
+        fprintf('unambiguous range window %.2f m; range grid spans %.2f m (%.2f windows)\n', ...
+            Ru, y_extent, y_extent/Ru);
+        if y_extent > Ru
+            warning(['the range grid is taller than the unambiguous range window, ' ...
+                'so scatterers will alias in range as well as crossrange. ' ...
+                'Reduce N_critical to at most L = numel(f_hat_l).']);
+        end
+    
+        % --- is that ambiguity genuine, or smeared away? ----------------------
+        % Aliasing requires the atom Wx away in crossrange to reproduce the
+        % scatterer's own atom. A wide fractional bandwidth breaks it (each range
+        % bin folds at its own Wx(f) = c*prf/(2*(fc+f)*w0)), and so does a target
+        % that is not compact in range relative to u0 (rotation-induced range
+        % migration). Measure the ghost coherence rather than assume it.
+        Wx_per_bin = c * prf ./ (2 * (fc + f_hat_l) * mean(w0));
+        grid.Wx_per_bin = Wx_per_bin;
+    
+        % Scan for the ghost rather than assuming it sits at exactly x + Wx. Yaw
+        % acceleration does not destroy the alias, it moves it: the effective fold
+        % distance is set by the mean rotation rate over the aperture, so the ghost
+        % drifts from Wx as w1 grows (measured 0.2 pixels at w1 = 0 and 4.3 pixels
+        % at w1 = 170 rad/s/s). The peak coherence is what governs whether the
+        % ambiguity can be resolved; its displacement is what the ambiguity check's
+        % search window (options.amb_refine_pixels) has to cover.
+        scan = (-8:0.25:8) * cross_range_pixel_res;
+        ghost_coherence = zeros(Ks,1);
+        ghost_offset_px = zeros(Ks,1);
+        for k = 1:Ks
+            ak = compute_atom(target_locations(k,1), target_locations(k,2), ...
+                u0, theta, f_hat_l, fc, false);
+            ak = ak / norm(ak);
+            cg = zeros(numel(scan),1);
+            for is = 1:numel(scan)
+                gk = compute_atom(target_locations(k,1) + Wx + scan(is), ...
+                    target_locations(k,2), u0, theta, f_hat_l, fc, false);
+                cg(is) = abs(gk' * ak) / norm(gk);
+            end
+            [ghost_coherence(k), ipk] = max(cg);
+            ghost_offset_px(k) = scan(ipk) / cross_range_pixel_res;
+        end
+        grid.ghost_coherence = ghost_coherence;
+        grid.ghost_offset_px = ghost_offset_px;
+    
+        fprintf('ghost peak coherence per scatterer: %s\n', ...
+            num2str(ghost_coherence.', '%.3f  '));
+        fprintf(['ghost displaced from +Wx by: %s pixels ' ...
+            '-> set options.amb_refine_pixels >= %d\n'], ...
+            num2str(ghost_offset_px.', '%+.2f  '), ...
+            max(1, ceil(max(abs(ghost_offset_px)) + 1)));
+    
+        fprintf(['fractional bandwidth %.3f -> fold distance %.2f to %.2f m ' ...
+            '(%.1f crossrange cells of spread)\n'], ...
+            (max(f_hat_l) - min(f_hat_l))/fc, min(Wx_per_bin), max(Wx_per_bin), ...
+            (max(Wx_per_bin) - min(Wx_per_bin)) / cross_range_resolution);
+        if any(ghost_coherence < 0.8)
+            warning(['the Doppler ambiguity is broken for at least one scatterer, ' ...
+                'so it will smear rather than alias. Reduce the fractional ' ...
+                'bandwidth and/or keep the target compact in range relative to u0.']);
+        end
+    end
 end
 

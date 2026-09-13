@@ -1,0 +1,51 @@
+
+\section{Methods}
+\label{sec:methods}
+
+The intention of this section is to walk through the proposed modifications to OMP to handle Doppler ambiguities and off-grid target scatterers. Algorithm \ref{algo:AROMP} illustrates the steps of AR-OMP. AR-OMP is similar in principle to the original OMP algorithm described in Section \ref{sec:omp} where atoms are selected based on maximization with the residual. However, AR-OMP makes two distinct modifications, assessment of candidate ambiguous atoms from an initial detection in the unambiguous region and off-grid refinement. Section \ref{sec:atom_selection} reviews the candidate atom selection represented as Step 10 in Algorithm \ref{algo:AROMP}. Section \ref{sec:off_grid} covers the off-grid refinement in the local neighborhoods of the ambiguous scatterers, Step 11 in Algorithm \ref{algo:AROMP}.
+
+\begin{algorithm}[ht]
+\caption{Ambiguity-Refined Orthogonal Matching Pursuit}\label{algo:AROMP}
+\begin{algorithmic}[1]
+\Procedure{AR-OMP}{$A, \mathbf{p}, s, W_x, N, \mathcal{D}, K, \tau$}
+  \Comment{dictionary, grid positions, measurement, unambiguous
+           extent, number of ambiguities, neighbourhood offsets,
+           sparsity, noise level}
+\State $\Lambda \gets \emptyset$,\; $A_s \gets [\,]$,\; $\hat{P} \gets [\,]$,\; $r \gets s$
+\State $\mathcal{N} \gets \{\lceil n/2 \rceil(-1)^n : n = 0,\dots,N-1\}$
+  \Comment{ambiguity indices, e.g. $\{-1,0,1\}$}
+\For{$i = 1$ \textbf{to} $K$}
+  \State $c \gets A^{H}r$,\quad $c_\Lambda \gets 0$
+    \Comment{mask atoms already selected}
+  \State $\ell \gets \arg\max_{j}|c_j|$,\quad $\Lambda \gets \Lambda \cup \{\ell\}$
+  \State $(x_0,y_0) \gets \mathbf{p}_\ell$,\quad $\gamma^\star \gets -\infty$
+  \For{$n \in \mathcal{N}$}
+    \For{$\delta \in \mathcal{D}$}
+      \State $\hat{p} \gets \textsc{Newton}(r,\, x_0 + nW_x + \delta,\, y_0)$
+      \State $a \gets \vartheta(\hat{p})$,\quad $\gamma \gets |a^{H}r|$
+      \If{$\gamma > \gamma^\star$}
+        \State $\gamma^\star \gets \gamma$,\; $a^\star \gets a$,\; $p^\star \gets \hat{p}$
+      \EndIf
+    \EndFor
+  \EndFor
+  \State $A_s \gets [A_s,\, a^\star]$,\quad $\hat{P} \gets [\hat{P},\, p^\star]$
+  \State $\hat{\alpha} \gets (A_s^{H}A_s)^{-1}A_s^{H}s$
+  \State $r \gets s - A_s\hat{\alpha}$
+  \State \textbf{if} $\|r\|_2 \leq \tau$ \textbf{then break}
+    \Comment{residual has reached the noise level}
+\EndFor
+\State \textbf{return} $\hat{\alpha},\, \hat{P}$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Ambiguous candidate atom selection}
+\label{sec:atom_selection}
+
+
+
+\subsection{Off-grid neighborhood refinement}
+\label{sec:off_grid}
+
+\subsection{Complexity}
+\label{sec:complexity}

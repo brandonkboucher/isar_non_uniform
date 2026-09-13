@@ -158,15 +158,19 @@ function [alpha_hat, p_hat, p_hat_hist] = promp_vec( ...
             error('OMP has nans.')
         end
 
-        progress_bar('PROMP', iatom, sparsity);
-
+        if options.debug_printing
+            progress_bar('PROMP', iatom, sparsity);
+        end
         % the residual has reached the noise level
         if norm(r) <= tau
             break
         end
     end
-    fprintf('\n');
 
+    if options.debug_printing
+        fprintf('\n');
+    end
+    
     % trim to what was written -- Gauss-Newton can converge before Rs steps
     if save_histories
         p_hat_hist = p_hat_hist(:, 1:istep-1);

@@ -47,13 +47,18 @@ function x_hat = omp_vec( ...
             error('OMP has nans.')
         end
 
-        progress_bar('OMP', i, K);
+        if options.debug_printing
+            progress_bar('OMP', i, K);
+        end
 
         % the residual has reached the noise level: nothing left to explain
         if norm(r) <= tau
             break
         end
     end
-    fprintf('\n');
+    
+    if options.debug_printing
+        fprintf('\n');
+    end
 end
 

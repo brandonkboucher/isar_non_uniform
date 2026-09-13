@@ -17,7 +17,7 @@ function [selected_a, selected_ambiguity,...
     f_hat_l, ...    % [L x 1]
     fc, ...         % (Hz) center frequency
     Rs, ...         % number of refinement steps
-    cross_range_resolution, ... % (m) crossrange pixel size
+    cross_range_pixel_res, ... % (m) crossrange pixel size of the image former
     num_offsets_pixels, ... % number of pixels to traverse using Newton's method
     options ...     % additional scenario options
     )
@@ -33,10 +33,15 @@ function [selected_a, selected_ambiguity,...
     % the ambiguous target scatterer we need to search in
     % its local neighborhood
 
+    % Seed on the image former's own pixel lattice, so the neighbourhood
+    % traverses the same atoms the other pursuits search rather than a lattice
+    % four times coarser. Stepping by the resolution instead left the seeds
+    % one full resolution cell apart and cost roughly one ambiguity
+    % misassignment in eight draws.
     x_offsets = ...
-        (-num_offsets_pixels*cross_range_resolution)...
-        :(cross_range_resolution)...
-        :(num_offsets_pixels*cross_range_resolution);
+        (-num_offsets_pixels*cross_range_pixel_res)...
+        :(cross_range_pixel_res)...
+        :(num_offsets_pixels*cross_range_pixel_res);
 
     
     best_c             = -inf;

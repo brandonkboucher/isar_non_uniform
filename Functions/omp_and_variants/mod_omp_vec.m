@@ -28,15 +28,6 @@ function [alpha_hat, p_hat] = mod_omp_vec( ...
         error('The number of ambiguities cannot be even to run mod OMP.')
     end
     
-    if strcmpi(sc.optimization_method, 'newtons_and_offset')
-        [range_resolution,cross_range_resolution] = ...
-            calculate_resolution(...
-                theta_m, ...      % [M x 1] yawing angle as function of slow-time
-                f_hat_l, ...    % [L x 1] range-frequency
-                fc...           % (Hz) center frequency
-                );
-    end
-
     % define the dimensions of the matrices
     [ML, K] = size(A); 
 
@@ -117,7 +108,7 @@ function [alpha_hat, p_hat] = mod_omp_vec( ...
                 f_hat_l, ...    % [L x 1]
                 fc, ...         % (Hz) center frequency
                 sc.num_optimization_steps, ... % number of refinement steps
-                cross_range_resolution, ... % (m) crossrange pixel size
+                grid.cross_range_pixel_res, ... % (m) crossrange pixel size
                 sc.num_offsets_pixels, ... % number of pixels to traverse using Newton's method
                 options ...     % additional scenario options
                 );
@@ -144,7 +135,9 @@ function [alpha_hat, p_hat] = mod_omp_vec( ...
             error('Mod-OMP has nans.')
         end
 
-        progress_bar('Mod-OMP', i, sparsity);
+        if options.debug_printing
+            progress_bar('Mod-OMP', i, sparsity);
+        end
 
         % the residual has reached the noise level
         if norm(r) <= tau
@@ -157,6 +150,8 @@ function [alpha_hat, p_hat] = mod_omp_vec( ...
     p_hat     = p_hat(:, 1:n_kept);
     alpha_hat = alpha_hat(1:n_kept);
 
-    fprintf('\n');
+    if options.debug_printing
+        fprintf('\n');
+    end
 end
 
