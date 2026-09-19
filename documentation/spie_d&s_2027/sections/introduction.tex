@@ -1,41 +1,54 @@
 \section{INTRODUCTION}
 \label{sec:intro}  % \label{} allows reference to this section
 
+% ------------------- motivation, Doppler ambguity ------------------
+
+% This paragraph introduces ISAR imaging as well as Doppler ambiguities with an example of where Doppler ambiguities can effect an image
+
 % motivation and Doppler ambiguity
-Inverse synthetic aperture radar (ISAR) imaging enables image creation in all weather systems and is advantageous in many air-to-air and air-to-ground applications. The resolution of an ISAR image is dependent on the bandwidth of the radar in the range direction and the angular diversity of the target in the cross-range direction. Doppler aliasing or Doppler ambiguity arrises when the PRF is less than twice the Doppler frequency of a scatterer. This is a common occurance in applications like space surveillance and imaging of group targets where the far distances necessitates a low PRF or the extension of the target exceeds the Doppler bandwidth <insert references>. The result is ambiguous Doppler frequencies fold into the unambiguous region, where Doppler frequencies originating from ambiguous and unambiguous regions can no longer be differentiated. 
+Inverse synthetic aperture radar (ISAR) imaging enables image creation in all weather at any time of the day or night. The range resolution of an ISAR image is dependent on the bandwidth of the radar, and the crossrange resolution is dependent on the angular diversity of the target. As the target rotates and the integration angle increases or the radar has more looks at a target, the crossrange resolution improves and scatterers are more easily differentiated. However, for non-cooperative targets, the target's motion is typically complex and has high-order motion parameters, rotational acceleration, jerk, etc \cite{Liu_2012}. This complex motion can result in Doppler aliasing. Doppler aliasing or Doppler ambiguity arrises when the PRF is less than twice the Doppler frequency of a scatterer. This is a common occurance in applications like space surveillance and imaging of group targets where the far distances necessitates a low PRF or the extension of the target exceeds the Doppler bandwidth [\citenum{Huang2016, Liu2022}]. The result is ambiguous Doppler frequencies fold into the unambiguous region where Doppler frequencies originating from ambiguous and unambiguous regions can no longer be differentiated. 
 
-% compressed sensing -> Doppler ambiguity literature review?
-Traditionally methods like Time-Frequency analysis and range-Doppler processing are used to address Doppler ambiguities. Another common method is to apply compressed sensing (CS) techniques. CS is a mathematical framework which exploits the sparsity of an image in a sparse domain. CS reduces the dimensionality of the problem from the nullspace of the sensing dictionary to the sparsity. One manifestation of CS are greedy algorithms, in particular OMP, which select atoms from a sensing dictionary with the greatest correlation with the measurement and residual. CS requires the sensing dictionary abides by the Restrictive Isometry Property (RIP) or the coherence requirement <insert citation>. 
+% --------------- SAR Doppler ambiguity literature review --------------
 
-The authors of [\citenum{Huang2016}] present a similar methodology to that presented in this paper, applying OMP to form an image by removing the Doppler ambiguity and correcting range cell. Their method leverages the differences in phase progression resulting from range-azimuth coupling and applies OMP to each range cell selecting Fourier-based atoms as a function of Doppler frequency, chirp rate and Doppler ambiguity. Using the selected atoms and subsequently estimated signal parameters, their method removes the Doppler ambiguity and corrects for range cell migration. This method effectively removes Doppler ambiguity; however, their method assumes uniform motion and the scatterers are on-grid. Their method relies on range-azimuth coupling in order disambiguate atoms, which <insert limmitation>. Additionally, because the Doppler ambiguity is included as a dimension in their sensing matrix, the dimensionality and complexity far exceeds our proposed method.
+% I think this paragraph could speak to the plethora of different methods available for Doppler ambiguity removal. 
 
+% To do:
+% 1. find a survey that walks through all of the different DAR methods
 
-% off-grid
-Additionally, ISAR imaging techniques like range-Doppler assume scatterers fall on-grid or at pre-defined range and Doppler combinations. However, real targets do not fall perfectly inline with pre-defined grids, and this descrepancy can cause distortion errors resulting from basis mismatch <insert reference>. The obvious fix is to increase the number of grid points, thereby distributing the energy of the measured reflectivity in a more exact position. This method has drawbacks, and is typically limited by both the additional computation required by increasing the dimensionality of the problem and by the increase in the coherence of atoms if using CS methods.
+In SAR imaging, there are a variety of different well-known and well-researched methods for handling Doppler ambiguity of a Doppler centroid. These methods are valuable but Doppler ambiguity arrises differently in ISAR compared to SAR, and alternative ISAR-specific Doppler ambiguity resolver methods are worth exploring. 
 
-% Modern off-grid methods
-% NOMP, PROMP, SBL, ANM and Learning-based
+% ------------- ISAR Doppler ambiguity literature review ------------
 
+% This paragraph reviews the current ISAR Doppler ambiguity literature
 
+% To do:
+% 1. continue searching for competing methods:
+%   isar doppler ambiguity
+%   isar group targets
+%   isar doppler aliasing
+%   check citations of Huang and Liu again
 
-% doppler ambiguity
-% compressed sensing and keystone transform
+However, literature directly investigating resolving or removing ISAR Doppler ambiguity for extended or group targets is more scarce. The available literature is primarily focused on leveraging migration through range cells (MTRC) in order to differentiate ambiguous and unambiguous scatterers. The authors of [\citenum{Huang2016}] applying OMP to form an image by removing the Doppler ambiguity and correcting range cell. Their method leverages the differences in phase progression resulting from range-azimuth coupling and applies OMP to each range cell selecting Fourier-based atoms as a function of Doppler frequency, chirp rate and Doppler ambiguity. Using the selected atoms and subsequently estimated signal parameters, their method removes the Doppler ambiguity and corrects for range cell migration. This method effectively removes Doppler ambiguity; however, their method assumes uniform motion, the scatterers are on-grid, and their method relies on range-azimuth coupling in order disambiguate atoms. Additionally, because the Doppler ambiguity is included as a dimension in their sensing matrix, the dimensionality and complexity far exceeds our proposed method. The authors of [\citenum{Liu2022}] use maximum weighted contrast to compare the range-walk produced by the estimated motion parameters and the range-walk for each ambiguity. The correct ambiguity corrects the range-walk and the scatterer's peak sharpens. [\citenum{Liu2022}] applies a Gaussian weighting to mitigate the sidelobes of the echo where the standard deviation is proportional to the standard deviation of the data in each range cell [\citenum{Liu2022}]. Their method is an effective approach in addressing Doppler ambiguity, but assumes each range cell contains a singular scatterer and suffers from on-grid approximation in determining position.
 
- 
+% --------------- Off-grid introduction and literature review --------------
 
-% Doppler ambiguity + off-grid current literature
+% I think this paragraph should start by mentioning the above methods do not assume off-grid, and then I think it should transition into a brief literature review of off-grid methods.
 
-% Existing modified OMP algorithms
+% To do:
+% 1. learning-based methods citations
+% 2. find other OMP off-grid methods
 
-% non-uniform phase progression -> atom differentiation
-The resolution of an ISAR image is dependent on the bandwidth of the radar and the rotation of the target. As the target rotates and the integration angle increases, the cross range resolution of the target improves. However, in applications like air-to-air detection, classification and tracking, the target's motion is typically complex and has high-order motion parameters, rotational acceleration, jerk, etc \cite{Liu_2012}. Traditionally these higher-order motion parameters are seen as a nuisance as they can corrupt and contaminate the image formation process with unwanted phase errors. However, higher-order motion parameters also introduce non-uniform phase progression or non-uniform sampling, which can be advantageous in differentiating otherwise highly correlated scatterers.
+Another assumption common in both [\citenum{Huang2016,Liu2022}] is the scatterers fall on-grid, dependent on the range and azimuth sampling. However, real targets do not fall perfectly inline with pre-defined grids, and this descrepancy can cause distortion errors resulting from basis mismatch [\citenum{chi2011}]. The obvious fix is to increase the number of grid points, thereby distributing the energy of the measured reflectivity in a more exact position. This method has drawbacks, and is typically limited by both the additional computation required by increasing the dimensionality of the problem and by the increase in the coherence of atoms if using CS methods. Modern off-grid imaging methods like sparse Bayesian learning (SBL) [\citenum{Tipping2001,Ji2008,Liu2014,Xiong2025}] and atomic norm minimization (ANM) [\citenum{Chandrasekaran2012,tang2013,Yang2016,Mingjiu2022}] are inherently continuous, enabling state-of-the-art reconstruction. However, SBL and ANM are computational expensive and are not feasible for on-board image processing.  In the pursuit of a real-time, off-grid ISAR image former, several authors have modified OMP. Most notably, Newtonized OMP (NOMP) cyclically refines each estimated target scatterering position individually using Newton's method [\citenum{Mamandipoor2015}]. Parameter-Refined OMP (PROMP) jointly refines the target scattering positions and reflectivities by calculating a Jacobian of the combined state [\citenum{Nguyen2019}].
+
+\mycomment{Learning-based methods like unfolding networks substitute the steps of iterative algorithms with neural networks where computation is reduced to single passes through neural layers. However, learning-based methods are only as good as their training data, and publicly available ISAR data is scarce. Many of the learning-based implementations then must train on small datasets and synthetic data which degrades generalizability.}
 
 \subsection{Contributions}
 
-The goal of this paper is to leverage non-uniform phase progression to differentiate unambiguous and ambiguous target scatterers. Additionally, our formulation of the problem naturally enables off-grid scatterer compensation where we apply Newton's method to a local neighborhood surrounding a candidate atom. Our key contributions are:
+% non-uniform phase progression -> atom differentiation
+Traditionally higher-order motion parameters are seen as a nuisance as they can corrupt and contaminate the image formation process with unwanted phase errors. Higher-order motion parameters also introduce non-uniform phase progression and migration through range cells (MTRC). The goal of this paper is to leverage non-uniform phase progression from non-uniform motion to differentiate unambiguous and ambiguous target scatterers. Additionally, our formulation of the problem naturally enables off-grid scatterer compensation where we apply Newton's method to a local neighborhood surrounding a candidate atom. Our key contributions are:
 
 \begin{enumerate}
-    \item Our proposed method ModOMP is able to reconstruct ISAR images formed from off-grid scatterers with non-uniform rotation.
-    \item We demonstrate the superiority of our method relative to other compressed sensing techniques, and compare reasonably to more computationally burdensome algorithms like SBL and ANM.
+    \item Our proposed method, AROMP is capable of differentiating Doppler ambiguous scatterers by leveraging the non-uniform phase progression resulting from the non-uniform rotation of the target
+    \item We perform off-grid reconstruction using Newton's method within a neighborhood of ambiguous and unambiguous candidate atoms
     \item We define a performance metric by which we can compare the outputs of ISAR images with strong individual scatterers.
 \end{enumerate}

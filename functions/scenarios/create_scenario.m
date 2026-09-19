@@ -17,9 +17,18 @@ function [sc,options,radar] = create_scenario()
     % orthogonal matching pursuit and related algorithms
     options.execute_omp                 = true;
     options.execute_nomp                = true;
-    options.execute_promp               = true;
+    options.execute_nomp_newton         = true; % NOMP with newton_method_exact
+    options.execute_promp               = false;
     options.execute_mod_omp             = true;
-    
+    options.execute_mod_omp_newton      = true; % mod-OMP with newton_method_exact + cyclic refinement
+
+    % candidate plot for mod_omp_newton: one figure per iteration that
+    % detected an aliased scatterer's ghost, or every iteration if the second
+    % flag is set
+    options.plot_mod_omp_candidates         = true;
+    options.plot_candidates_all_iterations  = true;
+    options.plot_best_candidate_paths       = true; % highlight each ambiguity's best Newton trajectory
+
     options.save_results                = true;
     options.save_plots                  = true;
     options.save_histories              = false; % only for one scatterer
@@ -53,6 +62,7 @@ function [sc,options,radar] = create_scenario()
     sc.is_off_grid                  = true;
     sc.num_amb_having_scatterers    = 3;
     sc.num_amb_in_image_former      = 1;
+    sc.num_amb_in_image_former_baselines = 3; % OMP/NOMP dictionary span in isar_testing_v3
     
     sc.yaw_acceleration             = 170;  % [rad/s/s]
     sc.yaw_jerk                     = 0;    % [rad/s/s/s]

@@ -14,7 +14,8 @@ clear
 clc
 
 % create scenario and option structs
-[sc, options, radar] = create_scenario();
+% [sc, options, radar] = create_scenario();
+[sc,options,radar] = create_scenario_baselines_win();
 rng(options.seed)
 
 %% radar parameters
@@ -47,11 +48,49 @@ f_hat_l = (-L/2)*df_l:df_l:(L/2 - 1)*df_l;
 
 K = size(grid.xk,1);
 
+% OMP and NOMP have no doppelganger search, so they are handed a dictionary
+% spanning more ambiguities than the image former (the split
+% isar_monte_carlo.m makes). mod-OMP keeps the one-ambiguity grid above.
+use_baseline_grid = ...
+    (isfield(options, 'execute_omp') ...
+    && options.execute_omp) ...
+    || (isfield(options, 'execute_nomp') ...
+    && options.execute_nomp) ...
+    || (isfield(options, 'execute_nomp_newton') ...
+    && options.execute_nomp_newton);
+
+grid_base = grid;
+if use_baseline_grid
+
+    sc_base = sc;
+    if isfield(sc, 'num_amb_in_image_former_baselines')
+        sc_base.num_amb_in_image_former = sc.num_amb_in_image_former_baselines;
+    else
+        sc_base.num_amb_in_image_former = sc.num_amb_having_scatterers;
+    end
+
+    % the scatterer draw depends on Wx and the range extent, not the image
+    % former span, so the same seed must reproduce it. The generator state is
+    % restored afterwards so the noise below is the same draw it always was.
+    rng_state = rng;
+    rng(options.seed)
+    [~, target_check, grid_base] = create_target_and_grid(...
+        sc_base, t_m, radar, f_hat_l, options);
+    rng(rng_state)
+
+    if ~isequal(target_check, target_locations)
+        error('isar_testing_v3:targetMismatch', ...
+            ['the baseline image former produced different scatterers from ' ...
+             'the same seed, so the algorithms would not be comparable']);
+    end
+end
+
 % A scatterer an algorithm never reports is charged the crossrange width of
 % the imaged scene, so declining to report a hard target cannot flatter the
 % RMS the way it did for PROMP (one estimate for two scatterers scored
-% 0.0034 m). See calculate_reconstruction_error.
-miss_penalty = max(grid.x_array) - min(grid.x_array);
+% 0.0034 m). See calculate_reconstruction_error. The charge must be the
+% same for every algorithm, so it comes from the wider of the two grids.
+miss_penalty = max(grid_base.x_array) - min(grid_base.x_array);
 
 % compute sensing dictionary
 as = zeros(M*L,sc.num_of_scatterers);
@@ -73,10 +112,14 @@ end
 fprintf('\n')
 
 % compute dictionary for reconstruction
+t_dict = tic;
 A = zeros(M*L,K);
+range_of_each_scatterer = zeros(M*L,K);
 for k = 1:K
 
-    ak = compute_atom(...
+    % the reconstruction dictionary (grid atoms) is A; the off-grid scatterer
+    % atoms `as` are used only to synthesize the measurement below.
+    [A(:,k), ~, range_of_each_scatterer(:,k)] = compute_atom(...
         grid.xk(k), ...
         grid.yk(k), ...
         u0, ...
@@ -85,15 +128,54 @@ for k = 1:K
         radar.fc, ...
         options.use_range_approx);
 
-    % the reconstruction dictionary (grid atoms) is A; the off-grid scatterer
-    % atoms `as` are used only to synthesize the measurement below.
-    A(:,k) = ak;
-
     if mod(k,round(K/20)) == 0
         progress_bar('A matrix', k, K)
     end
 end
 fprintf('\n')
+time_A = toc(t_dict);
+
+% determine the maximum range-walk to define the range
+% offset used for Newton's method
+range_offset = max(abs(range_of_each_scatterer(1,:) ...
+    - range_of_each_scatterer(end, :)));
+grid.range_offset = sc.num_amb_having_scatterers * range_offset;
+
+% the baselines' dictionary, one atom per node of the wider grid
+A_base = A;
+K_base = K;
+range_offset_base = range_offset;
+time_A_base = time_A;
+if use_baseline_grid
+    t_dict = tic;
+    K_base = numel(grid_base.xk);
+    A_base = zeros(M*L, K_base);
+    range_of_each_scatterer = zeros(M*L,K_base);
+    for k = 1:K_base
+        [A_base(:,k),~,range_of_each_scatterer(:,k)]  = compute_atom(...
+            grid_base.xk(k), ...
+            grid_base.yk(k), ...
+            u0, ...
+            theta_m, ...
+            f_hat_l, ...
+            radar.fc, ...
+            options.use_range_approx);
+
+        if mod(k,round(K_base/20)) == 0
+            progress_bar('A_base matrix', k, K_base)
+        end
+    end
+    fprintf('\n')
+    time_A_base = toc(t_dict);
+    fprintf('  mod-OMP  : %d ambiguity,  %d atoms\n', sc.num_amb_in_image_former, K);
+    fprintf('  OMP/NOMP : %d ambiguities, %d atoms\n', sc_base.num_amb_in_image_former, K_base);
+
+    % determine the maximum range-walk to define the range
+    % offset used for Newton's method
+    range_offset_base = max(abs(range_of_each_scatterer(1,:) ...
+        - range_of_each_scatterer(end, :)));
+
+end
 
 if options.debug_printing
     fprintf(['A has dimension ', num2str(size(A,1)), ' by ', num2str(size(A,2)), '\n'])
@@ -143,6 +225,7 @@ if isfield(options, 'execute_mod_omp') ...
     % mod-OMP refines each selected atom off the grid while it tests the
     % ambiguous doppelgangers, so it returns continuous positions like PROMP
     % rather than a gridded latent image
+    t_alg = tic;
     [alpha_hat, p_hat] = mod_omp_vec(...
         y,... % measurement
         A,... % gridded sensing matrix
@@ -156,6 +239,7 @@ if isfield(options, 'execute_mod_omp') ...
         sc, ...
         options ...
         );
+    x_hat.mod_omp.time_s = toc(t_alg);
 
     x_hat.mod_omp.positions = p_hat.';
     x_hat.mod_omp.alpha     = alpha_hat;
@@ -174,22 +258,67 @@ if isfield(options, 'execute_mod_omp') ...
 
 end
 
+% mod-OMP with the exact-Hessian Newton step (newton_method_exact) in both the
+% doppelganger search and NOMP's cyclic refinement. The third output records
+% every iteration's candidate search, for the candidate plot below.
+if isfield(options, 'execute_mod_omp_newton') ...
+    && options.execute_mod_omp_newton
+
+    t_alg = tic;
+    [alpha_hat, p_hat, mod_omp_cand] = mod_omp_newton_2d_rand(...
+        y,... % measurement
+        A,... % gridded sensing matrix
+        sc.num_of_latent_scatterers, ... % sparsity
+        grid, ...
+        u0, ...
+        theta_m, ...
+        f_hat_l, ...
+        radar.fc, ...
+        sc.num_amb_having_scatterers, ... % ambiguities the doppelganger test searches
+        sc, ...
+        options, ...
+        sc.num_optimization_cycles, ... % cyclic refinements, as NOMP
+        @newton_method_exact ...
+        );
+    x_hat.mod_omp_newton.time_s = toc(t_alg);
+
+    x_hat.mod_omp_newton.positions = p_hat.';
+    x_hat.mod_omp_newton.alpha     = alpha_hat;
+    x_hat.mod_omp_newton.Wx        = grid.Wx;
+    x_hat.mod_omp_newton.cand      = mod_omp_cand;
+
+    [x_hat.mod_omp_newton.error, x_hat.mod_omp_newton.pairs, ...
+        x_hat.mod_omp_newton.missed, x_hat.mod_omp_newton.false_alarms, ...
+        x_hat.mod_omp_newton.d] = ...
+        calculate_reconstruction_error(...
+        target_locations, ...
+        x_hat.mod_omp_newton.positions, ...
+        miss_penalty);
+
+end
+
 if isfield(options, 'execute_omp') ...
     && options.execute_omp
 
+    t_alg = tic;
     x_hat_omp = omp_vec(...
         y,...
-        A,...
+        A_base,... % multi-ambiguity dictionary
         sc.num_of_latent_scatterers, ...
         options);
+    x_hat.omp.time_s = toc(t_alg);
 
-    x_hat.omp.image = reshape(x_hat_omp,grid.Ny,grid.Nx);
+    x_hat.omp.image = reshape(x_hat_omp,grid_base.Ny,grid_base.Nx);
+
+    % the grid the image lives on, for the plots
+    x_hat.omp.x_array = grid_base.x_array;
+    x_hat.omp.y_array = grid_base.y_array;
 
     x_hat.omp.positions =...
         extract_target_positions(...
         x_hat.omp.image, ...
-        grid.x_array, ...
-        grid.y_array, ...
+        grid_base.x_array, ...
+        grid_base.y_array, ...
         sc.num_of_scatterers, ...
         'none');
 
@@ -207,7 +336,9 @@ end
 if isfield(options, 'execute_bp') ...
     && options.execute_bp
 
+    t_alg = tic;
     x_hat_bp = A'*y;
+    x_hat.bp.time_s = toc(t_alg);
     x_hat_bp = reshape(x_hat_bp,grid.Ny,grid.Nx);
     % x_hat.bp.image = x_hat_bp / norm(x_hat_bp, "fro");
     x_hat.bp.image = x_hat_bp;
@@ -236,6 +367,7 @@ end
 if isfield(options, 'execute_promp') ...
     && options.execute_promp
 
+    t_alg = tic;
     [alpha_hat, p_hat] = promp_vec(...
         y, ...                          % measurement [ML x 1]
         A, ...                          % sensing matrix [ML x K]
@@ -248,6 +380,7 @@ if isfield(options, 'execute_promp') ...
         f_hat_l, ...                    % range-frequencies [L]
         radar.fc, ...                    % center frequency
         options);
+    x_hat.promp.time_s = toc(t_alg);
 
     x_hat.promp.positions = p_hat.';
     x_hat.promp.alpha = alpha_hat;
@@ -265,23 +398,27 @@ end
 if isfield(options, 'execute_nomp') ...
         && options.execute_nomp
 
+    t_alg = tic;
     [alpha_hat, p_hat, p_hat_hist] = nomp_vec(...
         y, ...
-        A, ...
+        A_base, ... % multi-ambiguity dictionary
         sc.num_optimization_steps, ...
         sc.num_optimization_cycles, ...
         sc.num_of_scatterers, ...
-        grid.xk, ...
-        grid.yk, ...
+        grid_base.xk, ...
+        grid_base.yk, ...
         u0, ...
         theta_m, ...
         f_hat_l, ...
         radar.fc, ...
         options);
+    x_hat.nomp.time_s = toc(t_alg);
 
     x_hat.nomp.positions = p_hat.';
     x_hat.nomp.alpha = alpha_hat;
     x_hat.nomp.p_hat_hist = p_hat_hist.';
+    x_hat.nomp.x_array = grid_base.x_array;
+    x_hat.nomp.y_array = grid_base.y_array;
 
     [x_hat.nomp.error, x_hat.nomp.pairs, ...
         x_hat.nomp.missed, x_hat.nomp.false_alarms, ...
@@ -293,16 +430,73 @@ if isfield(options, 'execute_nomp') ...
 
 end
 
-if options.debug_printing
-    % summarize the reconstruction error for each algorithm that ran
-    fprintf('\n  algorithm   RMS position error [m]\n');
-    for alg = ["omp" "mod_omp" "nomp" "promp" "bp"]
-        if isfield(x_hat, alg) && isfield(x_hat.(alg), 'error')
-            fprintf('  %-10s  %.4f\n', alg, x_hat.(alg).error);
-        end
-    end
-    fprintf('\n');
+% NOMP with the exact-Hessian Newton step. Same algorithm as above -- same
+% dictionary, same Rs and Rc -- with newton_method swapped for
+% newton_method_exact, so the two rows isolate what the corrected Hessian is
+% worth to NOMP itself, separately from mod-OMP's ambiguity search.
+if isfield(options, 'execute_nomp_newton') ...
+        && options.execute_nomp_newton
+
+    t_alg = tic;
+    [alpha_hat, p_hat] = nomp_newton(...
+        y, ...
+        A_base, ... % multi-ambiguity dictionary
+        sc.num_optimization_steps, ...
+        sc.num_optimization_cycles, ...
+        sc.num_of_scatterers, ...
+        grid_base.xk, ...
+        grid_base.yk, ...
+        u0, ...
+        theta_m, ...
+        f_hat_l, ...
+        radar.fc, ...
+        options, ...
+        @newton_method_exact);
+    x_hat.nomp_newton.time_s = toc(t_alg);
+
+    x_hat.nomp_newton.positions = p_hat.';
+    x_hat.nomp_newton.alpha = alpha_hat;
+    x_hat.nomp_newton.x_array = grid_base.x_array;
+    x_hat.nomp_newton.y_array = grid_base.y_array;
+
+    [x_hat.nomp_newton.error, x_hat.nomp_newton.pairs, ...
+        x_hat.nomp_newton.missed, x_hat.nomp_newton.false_alarms, ...
+        x_hat.nomp_newton.d] = ...
+        calculate_reconstruction_error(...
+        target_locations, ...
+        x_hat.nomp_newton.positions, ...
+        miss_penalty);
+
 end
+
+% summarize every algorithm that ran: wall-clock time of the algorithm call
+% alone, the time to build the dictionary it searches, and their sum (the
+% cost of one measurement when the dictionary is built for it), with the RMS
+% position error and the dictionary size. mod_omp_newton's time includes
+% recording its candidates for the plot.
+alg_names = ["mod_omp", "mod_omp_newton", "omp", "nomp", "nomp_newton", "promp", "bp"];
+alg_label = ["mod-OMP", "mod-OMP (exact Newton)", "OMP", "NOMP", ...
+             "NOMP (exact Newton)", "PROMP", "BP"];
+alg_atoms = [K, K, K_base, K_base, K_base, K, K];
+alg_build = [time_A, time_A, time_A_base, time_A_base, time_A_base, time_A, time_A];
+rule = repmat('-', 1, 81);
+fprintf('\n  %-24s %10s %10s %10s %12s %8s\n', 'algorithm', 'run [s]', ...
+    'dict [s]', 'total [s]', 'error [m]', 'atoms');
+fprintf('  %s\n', rule);
+for ia = 1:numel(alg_names)
+    alg = alg_names(ia);
+    if isfield(x_hat, alg) && isfield(x_hat.(alg), 'time_s')
+        fprintf('  %-24s %10.3f %10.3f %10.3f %12.4f %8d\n', alg_label(ia), ...
+            x_hat.(alg).time_s, alg_build(ia), x_hat.(alg).time_s + alg_build(ia), ...
+            x_hat.(alg).error, alg_atoms(ia));
+    end
+end
+fprintf('  %s\n', rule);
+fprintf('  dictionaries: A (mod-OMP, PROMP, BP) %.3f s, %d atoms', time_A, K);
+if use_baseline_grid
+    fprintf(';  A_base (OMP, NOMP) %.3f s, %d atoms', time_A_base, K_base);
+end
+fprintf('\n\n');
 
 if options.save_plots
 
@@ -326,4 +520,26 @@ if options.save_plots
         x_hat,...
         options, ...
         'Scenario #1')
+end
+
+%% where mod-OMP's candidate atoms land for an aliased scatterer
+% For each mod-OMP iteration whose detection is the ghost of a scatterer
+% outside band 0, plot the doppelganger search: the correlation of the
+% residual with atoms over every ambiguity, the Newton seeds, their paths and
+% end points, and which candidate won. options.plot_candidates_all_iterations
+% plots every iteration instead of only the aliased ones.
+if isfield(options, 'plot_mod_omp_candidates') ...
+        && options.plot_mod_omp_candidates ...
+        && isfield(x_hat, 'mod_omp_newton')
+
+    plot_mod_omp_candidates(...
+        x_hat.mod_omp_newton.cand, ...
+        target_locations, ...
+        grid, ...
+        u0, ...
+        theta_m, ...
+        f_hat_l, ...
+        radar.fc, ...
+        sc, ...
+        options);
 end

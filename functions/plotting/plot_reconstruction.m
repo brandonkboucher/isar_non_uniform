@@ -27,8 +27,18 @@ function plot_reconstruction(...
         num_plots = num_plots + 1;
     end
 
+    if isfield(options, 'execute_mod_omp_newton') ...
+            && options.execute_mod_omp_newton
+        num_plots = num_plots + 1;
+    end
+
     if isfield(options, 'execute_nomp') ...
             && options.execute_nomp
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_nomp_newton') ...
+            && options.execute_nomp_newton
         num_plots = num_plots + 1;
     end
 
@@ -67,18 +77,26 @@ function plot_reconstruction(...
     f = figure('Visible','off');
     iplot = 1;
 
-    if isfield(options, 'execute_nomp') ...
-            && options.execute_nomp
+    % NOMP and the exact-Newton variant share one panel layout
+    nomp_variants = {'execute_nomp',        'nomp',        'NOMP'; ...
+                     'execute_nomp_newton', 'nomp_newton', 'NOMP (exact Newton)'};
+    for iv = 1:size(nomp_variants, 1)
+        if ~(isfield(options, nomp_variants{iv,1}) ...
+                && options.(nomp_variants{iv,1}))
+            continue
+        end
+        fld       = nomp_variants{iv,2};
+        alg_title = nomp_variants{iv,3};
 
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
 
-        x_nomp = x_hat.nomp.positions(:,1);
-        y_nomp = x_hat.nomp.positions(:,2);
-        alpha = x_hat.nomp.alpha;
+        x_alg = x_hat.(fld).positions(:,1);
+        y_alg = x_hat.(fld).positions(:,2);
+        alpha = x_hat.(fld).alpha;
 
         % helper to overlay the true positions on the current axes
-        plot(x_nomp, y_nomp + u0, '*', ...
+        plot(x_alg, y_alg + u0, '*', ...
             'MarkerEdgeColor', [0 0 1], ...
             'MarkerSize', 12, ...
             'LineWidth', 1.5);
@@ -87,10 +105,11 @@ function plot_reconstruction(...
         hold on; overlay_truth(); hold off
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title(sprintf('NOMP reconstruction (error: %.2e)', x_hat.nomp.error), 'FontSize', title_font_size)
+        title(sprintf('%s reconstruction (error: %.2e)', alg_title, x_hat.(fld).error), 'FontSize', title_font_size)
         set(gca, "FontSize",font_size)
-        xlim([min(x_array), max(x_array)])
-        ylim([min(y_array)+u0, max(y_array)+u0])
+        [xa, ya] = result_arrays(x_hat.(fld), x_array, y_array);
+        xlim([min(xa), max(xa)])
+        ylim([min(ya)+u0, max(ya)+u0])
         set(gca, 'YDir', 'reverse');
         set(gca,'FontSize',font_size)
     end
@@ -128,10 +147,11 @@ function plot_reconstruction(...
 
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
+        [xa, ya] = result_arrays(x_hat.omp, x_array, y_array);
         if options.log_scale_plotting
-            imagesc(x_array, y_array + u0, 20*log10(abs(x_hat.omp.image)))
+            imagesc(xa, ya + u0, 20*log10(abs(x_hat.omp.image)))
         else
-            imagesc(x_array, y_array + u0, abs(x_hat.omp.image))
+            imagesc(xa, ya + u0, abs(x_hat.omp.image))
         end
         axis square
         hold on; overlay_truth(); hold off
@@ -150,14 +170,22 @@ function plot_reconstruction(...
         set(gca,'FontSize',font_size)
     end
     
-    if isfield(options, 'execute_mod_omp') ...
-            && options.execute_mod_omp
+    % the repo mod-OMP and the exact-Newton variant share one panel layout
+    mod_omp_variants = {'execute_mod_omp',        'mod_omp',        'Modified OMP'; ...
+                        'execute_mod_omp_newton', 'mod_omp_newton', 'mod-OMP (exact Newton)'};
+    for iv = 1:size(mod_omp_variants, 1)
+        if ~(isfield(options, mod_omp_variants{iv,1}) ...
+                && options.(mod_omp_variants{iv,1}))
+            continue
+        end
+        fld       = mod_omp_variants{iv,2};
+        alg_title = mod_omp_variants{iv,3};
 
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
 
-        x_mod = x_hat.mod_omp.positions(:,1);
-        y_mod = x_hat.mod_omp.positions(:,2);
+        x_mod = x_hat.(fld).positions(:,1);
+        y_mod = x_hat.(fld).positions(:,2);
 
         plot(x_mod, y_mod + u0, '*', ...
             'MarkerEdgeColor', [0.85 0.33 0.10], ...
@@ -172,8 +200,8 @@ function plot_reconstruction(...
         % crossrange band the image former covers. Widen the axis to whatever
         % the estimates and the truth actually span, and mark the unambiguous
         % band so a recovered ambiguity is readable.
-        if isfield(x_hat.mod_omp, 'Wx') && ~isempty(x_hat.mod_omp.Wx)
-            Wx = x_hat.mod_omp.Wx;
+        if isfield(x_hat.(fld), 'Wx') && ~isempty(x_hat.(fld).Wx)
+            Wx = x_hat.(fld).Wx;
             for edge = [-0.5 0.5] * Wx
                 plot([edge edge], [min(y_array) max(y_array)] + u0, '--', ...
                     'Color', [0.5 0.5 0.5], 'LineWidth', 1.2);
@@ -183,8 +211,8 @@ function plot_reconstruction(...
 
         xlabel('crossrange [m]')
         ylabel('range [m]')
-        title(sprintf('Modified OMP reconstruction (error: %.2e)', ...
-            x_hat.mod_omp.error), 'FontSize', title_font_size)
+        title(sprintf('%s reconstruction (error: %.2e)', ...
+            alg_title, x_hat.(fld).error), 'FontSize', title_font_size)
         set(gca, "FontSize",font_size)
         xlim(pad_limits([x_mod(:); true_x(:); min(x_array); max(x_array)]))
         ylim([min(y_array)+u0, max(y_array)+u0])
@@ -302,4 +330,14 @@ function lim = pad_limits(v)
         pad = (hi - lo) * 0.05;
     end
     lim = [lo - pad, hi + pad];
+end
+
+function [xa, ya] = result_arrays(res, x_array, y_array)
+% RESULT_ARRAYS  The grid an algorithm's result was formed on: its own
+% x_array/y_array when it carries them (OMP and NOMP run on a dictionary
+% spanning more ambiguities than the image former), else the shared ones.
+
+    xa = x_array; ya = y_array;
+    if isfield(res, 'x_array') && ~isempty(res.x_array), xa = res.x_array; end
+    if isfield(res, 'y_array') && ~isempty(res.y_array), ya = res.y_array; end
 end

@@ -1,4 +1,4 @@
-function [a, phase] = compute_atom(...
+function [a, phase, range] = compute_atom(...
     x, ...
     y, ...
     u0, ...
@@ -28,7 +28,7 @@ function [a, phase] = compute_atom(...
     M = size(theta_m, 1);
     L = size(f_hat_l, 2);
     a = zeros(M,L);
-    phase = zeros(M,L);
+    phase = zeros(M,L); range = zeros(M,L);
 
     for m = 1:M
 
@@ -58,12 +58,14 @@ function [a, phase] = compute_atom(...
             
             % form the sensing matrix
             phase(m,l) = -2 * pi  * (fc + f_hat) * tau_k;
+            range(m,l) = rk;
             a(m,l) = exp(1j * phase(m,l));
         end
     end
 
     % reshape the sensing matrix to a vector
     a = reshape(a, [], 1); % M*L x 1
+    range = reshape(range, [], 1); % ML x 1
     phase = reshape(phase, [], 1); % M*L x 1
 
 end

@@ -66,6 +66,7 @@ function [sc,target_locations, ...
         theta = w0 * t_m ...
             + (1/2) * w1 * t_m .* t_m ...
             + (1/3) * w2 * t_m .* t_m .* t_m;
+        w0_m = w0 + w1 * t_m + w2 * t_m .* t_m;
     end
 
     [range_resolution,cross_range_resolution] = ...
@@ -78,8 +79,13 @@ function [sc,target_locations, ...
     % define the crossrange unambiguous extent, this is the extent at which the 
     % crossrange is unambiguous. if a scatterer's crossrange exceeds this extent
     % then it is ambiguous
-    Wx = c * prf / (2 * fc * mean(w0));
+    Wx = c * prf / (2 * fc * mean(w0_m));
+
+    % for accelerating targets the crossrange unambiguous
+    % extent changes with slow-time
+    Wx_m = c * prf ./ (2 * fc * w0_m);
     grid.Wx = Wx;
+    grid.Wx_m = Wx_m;
 
     % determine the number of pixels within the crossrange unambiguous extent
     n_pix_per_amb = round(Wx / cross_range_resolution);

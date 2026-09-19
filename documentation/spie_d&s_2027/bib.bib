@@ -1,44 +1,19 @@
-@ARTICLE{Tang_2016,
-  author={Tang, Jiangwen and Deng, Yunkai and Wang, Robert and Zhao, Shuo and Li, Ning and Wang, Wei},
-  journal={IEEE Geoscience and Remote Sensing Letters}, 
-  title={A Weighted Backprojection Algorithm for Azimuth Multichannel SAR Imaging}, 
-  year={2016},
-  volume={13},
-  number={9},
-  pages={1265-1269},
-  keywords={Azimuth;Synthetic aperture radar;Radar imaging;Radar polarimetry;Reconstruction algorithms;Nonuniform sampling;Azimuth ambiguity;azimuth multichannel SAR;backprojection algorithm (BPA);nonuniform sampling},
-  doi={10.1109/LGRS.2016.2580907}}
 
-@ARTICLE{Sun_2015,
-  author={Sun, Chao and Wang, Baoping and Fang, Yang and Yang, Kaifang and Song, Zuxun},
-  journal={Signal Processing}, 
-  title={High-resolution ISAR imaging of maneuvering targets based on sparse reconstruction}, 
-  year={2015},
-  volume={108},
-  pages={535-548},
-  doi={10.1016/j.sigpro.2014.10.027}}
 
-@ARTICLE{Zhang_2019,
-  author={Zhang, Yuhong and Xing, Mengdao},
-  journal={IEEE Sensors Journal}, 
-  title={Joint Method of ISAR Imaging and Scaling for Maneuvering Targets via Compressive Sensing}, 
-  year={2019},
-  volume={19},
-  number={17},
-  pages={7300-7307},
-  keywords={Image resolution;Imaging;Sensors;Doppler effect;Signal resolution;Frequency modulation;Radar imaging;Inverse synthetic aperture radar (ISAR);non-uniform rotation;matched Fourier transform (MFT);compressive sensing (CS)},
-  doi={10.1109/JSEN.2019.2897383}}
-
-@INPROCEEDINGS{Ren_2009,
-  author={Ren, Xiaozhen and Yin, Xiaofei and Yang, Ruliang and Yu, Weidong},
-  booktitle={2009 IEEE International Geoscience and Remote Sensing Symposium}, 
-  title={A three-dimensional imaging algorithm for tomography SAR}, 
-  year={2009},
-  volume={3},
-  number={},
-  pages={III-184-III-187},
-  keywords={Tomography;Radar scattering;Radar tracking;Pulse modulation;Light scattering;Synthetic aperture radar;Azimuth;Chirp modulation;Data acquisition;Radar imaging;tomography SAR;non-uniform;back-projection;three-dimensional imaging},
-  doi={10.1109/IGARSS.2009.5417930}}
+%% ----------------------------------- ISAR imaging "Doppler ambiguity" methods -------------------------------
+@Article{Liu2022,
+AUTHOR = {Liu, Fengkai and Huang, Darong and Guo, Xinrong and Feng, Cunqian},
+TITLE = {Unambiguous ISAR Imaging Method for Complex Maneuvering Group Targets},
+JOURNAL = {Remote Sensing},
+VOLUME = {14},
+YEAR = {2022},
+NUMBER = {11},
+ARTICLE-NUMBER = {2554},
+URL = {https://www.mdpi.com/2072-4292/14/11/2554},
+ISSN = {2072-4292},
+ABSTRACT = {In inverse synthetic-aperture radar (ISAR) imaging, it is essential to deal with the Doppler ambiguity of group targets with complex maneuvers in order to avoid the bias of target position towards the actual value. Simultaneously, migration through resolution cell (MTRC) under the Doppler ambiguity is unable to be compensated for as a preprocessing. Traditional ISAR imaging methods for maneuvering targets, however, are undesirable to handle the severe deformation and defocusing in the imaging results induced by the Doppler ambiguity and MTRC. In this paper, we propose a novel and effective ISAR imaging method to improve the imaging quality by removing the Doppler ambiguity and compensating for the MTRC. Specifically, we first model the echo as a multi-component cubic phase signal (m-CPS) and design a high-order instantaneous autocorrelation function–generalized scaled Fourier transform (HIAF–GSCFT) to process the echo. This is to estimate the rotational parameters without MTRC compensation. Then, a maximum weighted contrast algorithm is used to remove the Doppler ambiguity, followed by reconstructing the echo. Compared with the existing method, the proposed method can accurately estimate the rotational parameters under the existing MTRCs and achieves a high-quality ISAR image for group targets, with complex maneuvers without Doppler ambiguity. Experiments of simulated and measured datasets validate its effectiveness and robustness for single target and group targets.},
+DOI = {10.3390/rs14112554}
+}
 
 @article{Huang2016,
 author = {Huang, Darong and Zhang, Lei and Xing, Mengdao and Bao, Zheng},
@@ -55,288 +30,120 @@ abstract = {Low pulse repetition frequency waveforms inherently suffer from the 
 year = {2016}
 }
 
-@article{Bostock_2017,
-author = {Bostock, Mark and Nietlispach, Daniel},
-title = {Compressed sensing: Reconstruction of non-uniformly sampled multidimensional NMR data},
-journal = {Concepts in Magnetic Resonance Part A},
-volume = {46A},
-number = {2},
-pages = {e21438},
-keywords = {compressed sensing, multidimensional nuclear magnetic resonance, non-uniform sampling, signal processing, sparse sampling},
-doi = {https://doi.org/10.1002/cmr.a.21438},
-url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/cmr.a.21438},
-eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/cmr.a.21438},
-abstract = {Abstract Nuclear magnetic resonance (NMR) spectroscopy is widely used across the physical, chemical, and biological sciences. A core component of NMR studies is multidimensional experiments, which enable correlation of properties from one or more NMR-active nuclei. In high-resolution biomolecular NMR, common nuclei are 1H, 15N, and 13C, and triple resonance experiments using these three nuclei form the backbone of NMR structural studies. In other fields, a range of other nuclei may be used. Multidimensional NMR experiments provide unparalleled information content, but this comes at the price of long experiment times required to achieve the necessary resolution and sensitivity. Non-uniform sampling (NUS) techniques to reduce the required data sampling have existed for many decades. Recently, such techniques have received heightened interest due to the development of compressed sensing (CS) methods for reconstructing spectra from such NUS datasets. When applied jointly, these methods provide a powerful approach to dramatically improve the resolution of spectra per time unit and under suitable conditions can also lead to signal-to-noise ratio improvements. In this review, we explore the basis of NUS approaches, the fundamental features of NUS reconstruction using CS and applications based on CS approaches including the benefits of expanding the repertoire of biomolecular NMR experiments into higher dimensions. We discuss some of the recent algorithms and software packages and provide practical tips for recording and processing NUS data by CS.},
-year = {2017}
+%% ----------------------------------- Off-grid ISAR methods -------------------------------
+
+
+@article{chi2011, author = {Yuejie Chi and Scharf, L. L. and Pezeshki, A. and Calderbank, A. R.}, title = {Sensitivity to Basis Mismatch in Compressed Sensing}, year = {2011}, issue_date = {May 2011}, publisher = {IEEE Press}, volume = {59}, number = {5}, issn = {1053-587X}, url = {https://doi.org/10.1109/TSP.2011.2112650}, doi = {10.1109/TSP.2011.2112650}, abstract = {The theory of compressed sensing suggests that successful inversion of an image of the physical world (broadly defined to include speech signals, radar/sonar returns, vibration records, sensor array snapshot vectors, 2-D images, and so on) for its source modes and amplitudes can be achieved at measurement dimensions far lower than what might be expected from the classical theories of spectrum or modal analysis, provided that the image is sparse in an apriori known basis. For imaging problems in spectrum analysis, and passive and active radar/sonar, this basis is usually taken to be a DFT basis. However, in reality no physical field is sparse in the DFT basis or in any apriori known basis. No matter how finely we grid the parameter space the sources may not lie in the center of the grid cells and consequently there is mismatch between the assumed and the actual bases for sparsity. In this paper, we study the sensitivity of compressed sensing to mismatch between the assumed and the actual sparsity bases. We start by analyzing the effect of basis mismatch on the best k-term approximation error, which is central to providing exact sparse recovery guarantees. We establish achievable bounds for the l1 error of the best k -term approximation and show that these bounds grow linearly with the image (or grid) dimension and the mismatch level between the assumed and actual bases for sparsity. We then derive bounds, with similar growth behavior, for the basis pursuit l1 recovery error, indicating that the sparse recovery may suffer large errors in the presence of basis mismatch. Although, we present our results in the context of basis pursuit, our analysis applies to any sparse recovery principle that relies on the accuracy of best k-term approximations for its performance guarantees. We particularly highlight the problematic nature of basis mismatch in Fourier imaging, where spillage from off-grid DFT components turns a sparse representation into an incompressible one. We substantiate our mathematical analysis by numerical examples that demonstrate a considerable performance degradation for image inversion from compressed sensing measurements in the presence of basis mismatch, for problem sizes common to radar and sonar.}, journal = {Trans. Sig. Proc.}, month = may, pages = {2182–2195}, numpages = {14} }
+
+@article{Mamandipoor2015,
+  author       = {Babak Mamandipoor and
+                  Dinesh Ramasamy and
+                  Upamanyu Madhow},
+  title        = {Newtonized Orthogonal Matching Pursuit: Frequency Estimation over
+                  the Continuum},
+  journal      = {CoRR},
+  volume       = {abs/1509.01942},
+  year         = {2015},
+  url          = {http://arxiv.org/abs/1509.01942},
+  eprinttype   = {arXiv},
+  eprint       = {1509.01942},
+  timestamp    = {Mon, 13 Aug 2018 16:47:33 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/MamandipoorRM15.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 
-@INPROCEEDINGS{Zobly_2011,
-  author={Zobly, Sulieman M. S. and Kakah, Yasser M.},
-  booktitle={2011 28th National Radio Science Conference (NRSC)}, 
-  title={Compressed sensing: Doppler ultrasound signal recovery by using non-uniform sampling \& random sampling}, 
-  year={2011},
-  volume={},
-  number={},
-  pages={1-9},
-  keywords={Doppler effect;Image reconstruction;Compressed sensing;Ultrasonic imaging;Ultrasonic variables measurement;Time-frequency analysis;Blood;Frequency measurement;Communications technology;Spectrogram;compressed sensing;sparsity;Doppler ultrasound;ℓ1-norm;non-uniform sampling;signal \& image processing;random sampling},
-  doi={10.1109/NRSC.2011.5873610}}
+@ARTICLE{Nguyen2019,
+  author={Nguyen, Ngoc Hung and Doğançay, Kutluyıl and Tran, Hai-Tan and Berry, Paul E.},
+  journal={IEEE Transactions on Aerospace and Electronic Systems}, 
+  title={Parameter-Refined OMP for Compressive Radar Imaging of Rotating Targets}, 
+  year={2019},
+  volume={55},
+  number={6},
+  pages={3561-3577},
+  keywords={Radar imaging;Australia;Dictionaries;Matching pursuit algorithms;Imaging;Radar scattering;Compressive radar imaging;micromotion;nonlinear least-squares (NLS);parameter perturbation;sparse reconstruction},
+  doi={10.1109/TAES.2019.2909791}}
 
+%% ----------------------------------- ANM -------------------------------
 
-@INPROCEEDINGS{Zeng_2014,
-  author={Zeng, Gengsheng L.},
-  booktitle={2014 IEEE Nuclear Science Symposium and Medical Imaging Conference (NSS/MIC)}, 
-  title={Comparison of FBP and iterative algorithms with non-uniform angular sampling}, 
-  year={2014},
-  volume={},
-  number={},
-  pages={1-13},
-  keywords={Image reconstruction;Iterative algorithms;Filtering algorithms;Detectors;Spatial resolution;Phantoms;Bayes methods;Geometry;Computer simulation;Anisotropic;Analytic image reconstruction;angular sampling;filtered backprojection (FBP) algorithm;iterative image reconstruction;medical imaging;tomography},
-  doi={10.1109/NSSMIC.2014.7430968}}
+@article{Chandrasekaran2012,
+   title={The Convex Geometry of Linear Inverse Problems},
+   volume={12},
+   ISSN={1615-3383},
+   url={http://dx.doi.org/10.1007/s10208-012-9135-7},
+   DOI={10.1007/s10208-012-9135-7},
+   number={6},
+   journal={Foundations of Computational Mathematics},
+   publisher={Springer Science and Business Media LLC},
+   author={Chandrasekaran, Venkat and Recht, Benjamin and Parrilo, Pablo A. and Willsky, Alan S.},
+   year={2012},
+   month=Oct, pages={805–849} }
 
-@book{Zeng_2010,
-author = {Zeng, Gengsheng},
-year = {2010},
-month = {01},
-pages = {1-198},
-title = {Medical image reconstruction: A conceptual tutorial},
-isbn = {978-3-642-05367-2},
-journal = {Medical Image Reconstruction: A Conceptual Tutorial},
-doi = {10.1007/978-3-642-05368-9}
+@misc{tang2013,
+      title={Compressed Sensing off the Grid}, 
+      author={Gongguo Tang and Badri Narayan Bhaskar and Parikshit Shah and Benjamin Recht},
+      year={2013},
+      eprint={1207.6053},
+      archivePrefix={arXiv},
+      primaryClass={cs.IT},
+      url={https://arxiv.org/abs/1207.6053}, 
 }
 
-@book{Majumdar_2018,
-author = {Majumdar, Angshul},
-year = {2018},
-month = {12},
-pages = {292},
-title = {Compressed Sensing for Engineers},
-isbn = {9781351261364},
-publisher = {Taylor and Francis Group},
-doi = {10.1201/9781351261364}
-}
-
-@INBOOK{Jakowatz1996,
-  author         = {Jakowatz, Charles and Wahl, Daniel and Eichel, Paul and Ghiglia, Dennis and Thompson, Paul},
-  booktitle      = {{S}potlight-{M}ode {S}ynthetic {A}perture {R}adar: {A} {S}ignal {P}rocessing {A}pproach},
-  publisher      = {Kluwer Academic Publishers},
-  address        = {Boston/London/Dordrecht},
-  title          = {{S}potlight-{M}ode {S}ynthetic {A}perture {R}adar: {A} {S}ignal {P}rocessing {A}pproach},
-  edition        = {1},
-  year           = {1996}
-}
-
-@ARTICLE{Xu2022,
-  author={Xu, Gang and Zhang, Bangjie and Chen, Jianlai and Wu, Fan and Sheng, Jialian and Hong, Wei},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={Sparse Inverse Synthetic Aperture Radar Imaging Using Structured Low-Rank Method}, 
-  year={2022},
-  volume={60},
-  number={},
-  pages={1-12},
-  keywords={Imaging;Radar imaging;Sparse matrices;Radar;Image resolution;Minimization;Matrix decomposition;Alternative direction method of multipliers (ADMMs);inverse synthetic aperture radar (ISAR);matrix completion (MC);structured Hankel matrix},
-  doi={10.1109/TGRS.2021.3118083}}
-
-@misc{delta_wiki,
-    author = "{Wikipedia contributors}",
-    title = "Dirac delta function --- {Wikipedia}{,} The Free Encyclopedia",
-    year = "2026",
-    url = "https://en.wikipedia.org/w/index.php?title=Dirac_delta_function&oldid=1346213267",
-    note = "[Online; accessed 15-April-2026]"
-  }
-
-@ARTICLE{Liu_2012,
- author={Liu, Jihong and Li, Xiang and Xu, Shaokun and Zhuang, Zhaowen},
- title={ISAR IMAGING OF NON-UNIFORM ROTATION TARGETS WITH LIMITED PULSES VIA COMPRESSED SENSING},
- volume={41},
- journal={Progress In Electromagnetics Research B},
- year={2012},
- pages={285-305},
- doi={10.2528/PIERB12041715}
- }
-
-@ARTICLE{Grathwohl_2025,
-  author={Grathwohl, Alexander and Kanz, Julian and Bonfert, Christina and Waldschmidt, Christian},
-  journal={IEEE Journal of Microwaves}, 
-  title={UAV-Based SAR-Imaging of Objects From Arbitrary Trajectories Using Weighted Backprojection}, 
-  year={2025},
-  volume={5},
-  number={4},
-  pages={856-867},
-  keywords={Radar;Trajectory;Radar antennas;Backscatter;Radar imaging;Imaging;Scattering;Geometry;Radar polarimetry;Autonomous aerial vehicles;Synthetic aperture radar;UAV;SAR;FMCW radar;backscatter;weighting;imaging;flight path;trajectory},
-  doi={10.1109/JMW.2025.3575157}}
-
-@article{Zeng_2012,
-author = {Zeng, Gengsheng L.},
-title = {A filtered backprojection MAP algorithm with nonuniform sampling and noise modeling},
-journal = {Medical Physics},
-volume = {39},
-number = {4},
-pages = {2170-2178},
-keywords = {Computed tomography, X-ray imaging, Numerical approximation and analysis, Reconstruction, Probability theory, stochastic processes, and statistics, computerised tomography, image reconstruction, image resolution, image sampling, image texture, iterative methods, maximum likelihood estimation, medical image processing, image reconstruction, iterative MAP algorithm, analytical reconstruction algorithm, tomography, Computerised tomographs, Digital computing or data processing equipment or methods, specially adapted for specific applications, Image data processing or generation, in general, Analysis of texture, Medical image noise, Medical imaging, Image reconstruction, Medical image reconstruction, Computer simulation, Medical X-ray imaging, Computed tomography, Fourier transforms, Image sensors, Poisson's equation},
-doi = {https://doi.org/10.1118/1.3697736},
-url = {https://aapm.onlinelibrary.wiley.com/doi/abs/10.1118/1.3697736},
-eprint = {https://aapm.onlinelibrary.wiley.com/doi/pdf/10.1118/1.3697736},
-abstract = {Purpose: The goal of this paper is to extend our recently developed FBP (filtered backprojection) algorithm, which has the same characteristics of an iterative Landweber algorithm, to an FBP algorithm with the same characteristics of an iterative MAP (maximuma posteriori) algorithm. The newly developed FBP algorithm also works when the angular sampling interval is not uniform. The projection noise variance can be modeled using a view-based weighting scheme. Methods: The new objective function contains projection noise model dependent weighting factors and image dependent prior (i.e., a Bayesian term). The noise weighting is view-by-view based. For the first time, the FBP algorithm is able to model the projection noise. Based on the formulation of the iterative Landweber MAP algorithm, a frequency-domain window function is derived for each iteration of the Landweber MAP algorithm. As a result, the ramp filter and the windowing function are both modified by the Bayesian component. This new FBP algorithm can be applied to a projection data set that is not uniformly sampled. Results: Computer simulations show that the new FBP-MAP algorithm with window function indexk and the iterative Landweber MAP algorithm with iteration number k give similar reconstructions in terms of resolution and noise texture. An example of transmission x-ray CT shows that the noise modeling method is able to significantly reduce the streaking artifacts associated with low-dose CT. Conclusions: View-based noise weighting scheme can be introduced to the FBP algorithm as a weighting factor in the window function. The new FBP algorithm is able to provide similar results to the iterative MAP algorithm if the ramp filter is modified with a additive term. Nonuniform sampling and sensitivity can be accommodated by proper backprojection weighting.},
-year = {2012}
-}
-
-@INPROCEEDINGS{Subiza_2003,
-  author={Subiza, B. and Gimeno-Nieves, E. and Lopez-Sanchez, J.M. and Fortuny-Guasch, J.},
-  booktitle={IGARSS 2003. 2003 IEEE International Geoscience and Remote Sensing Symposium. Proceedings (IEEE Cat. No.03CH37477)}, 
-  title={An approach to SAR imaging by means of non-uniform FFTs}, 
-  year={2003},
-  volume={6},
-  number={},
-  pages={4089-4091 vol.6},
-  keywords={Radar polarimetry;Interpolation;Computational efficiency;Testing;Image analysis;Frequency domain analysis;Backscatter;Fourier transforms;Numerical simulation;Performance analysis},
-  doi={10.1109/IGARSS.2003.1295371}}
-
-
-@ARTICLE{Jackson_1991,
-  author={Jackson, J.I. and Meyer, C.H. and Nishimura, D.G. and Macovski, A.},
-  journal={IEEE Transactions on Medical Imaging}, 
-  title={Selection of a convolution function for Fourier inversion using gridding (computerised tomography application)}, 
-  year={1991},
-  volume={10},
-  number={3},
-  pages={473-478},
-  keywords={Convolution;Computed tomography;Image reconstruction;Sampling methods;Radio astronomy;Magnetic resonance imaging;Image sampling;Fast Fourier transforms;Wave functions;Interpolation},
-  doi={10.1109/42.97598}}
-
-@article{Pipe_1999,
-author = {Pipe, James G. and Menon, Padmanabhan},
-title = {Sampling density compensation in MRI: Rationale and an iterative numerical solution},
-journal = {Magnetic Resonance in Medicine},
-volume = {41},
-number = {1},
-pages = {179-186},
-keywords = {gridding, sampling density, Nyquist, spiral MRI},
-doi = {https://doi.org/10.1002/(SICI)1522-2594(199901)41:1<179::AID-MRM25>3.0.CO;2-V},
-url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/%28SICI%291522-2594%28199901%2941%3A1%3C179%3A%3AAID-MRM25%3E3.0.CO%3B2-V},
-eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/%28SICI%291522-2594%28199901%2941%3A1%3C179%3A%3AAID-MRM25%3E3.0.CO%3B2-V},
-abstract = {Abstract Data collection of MRI which is sampled nonuniformly in k-space is often interpolated onto a Cartesian grid for fast reconstruction. The collected data must be properly weighted before interpolation, for accurate reconstruction. We propose a criterion for choosing the weighting function necessary to compensate for nonuniform sampling density. A numerical iterative method to find a weighting function that meets that criterion is also given. This method uses only the coordinates of the sampled data; unlike previous methods, it does not require knowledge of the trajectories and can easily handle trajectories that “cross” in k-space. Moreover, the method can handle sampling patterns that are undersampled in some regions of k-space and does not require a post-gridding density correction. Weighting functions for various data collection strategies are shown. Synthesized and collected in vivo data also illustrate aspects of this method. Magn Reson Med 41:179–186, 1999. © 1999 Wiley-Liss, Inc.},
-year = {1999}
-}
-
-@INPROCEEDINGS{Malik_2005,
-  author={Malik, W.Q. and Khan, H.A. and Edwards, D.J. and Stevens, C.J.},
-  booktitle={IEEE/Sarnoff Symposium on Advances in Wired and Wireless Communication, 2005.}, 
-  title={A gridding algorithm for efficient density compensation of arbitrarily sampled Fourier-domain data}, 
-  year={2005},
-  volume={},
-  number={},
-  pages={125-128},
-  keywords={Signal processing algorithms;Data engineering;Magnetic resonance imaging;Radar signal processing;Fast Fourier transforms;Interpolation;Image reconstruction;Grid computing;Sampling methods;Computational efficiency},
-  doi={10.1109/SARNOF.2005.1426528}}
-
-
-@INPROCEEDINGS{Zhao_2018,
-  author={Zhao, Yikun and Xiang, Yin and Ding, Zegang and Zeng, Tao and Long, Teng},
-  booktitle={2018 Progress in Electromagnetics Research Symposium (PIERS-Toyama)}, 
-  title={A Universal Fast Back Projection Method for Nonuniform Sampling Based on Nonuniform FFT}, 
-  year={2018},
-  volume={},
-  number={},
-  pages={1932-1937},
-  keywords={Radar imaging;Nonuniform sampling;Ground penetrating radar;Receiving antennas;Azimuth},
-  doi={10.23919/PIERS.2018.8597788}}
-
-@ARTICLE{Bonfert_2024,
-  author={Bonfert, Christina and Ruopp, Elias and Waldschmidt, Christian},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={Improving SAR Imaging by Superpixel-Based Compressed Sensing and Backprojection Processing}, 
-  year={2024},
-  volume={62},
-  number={},
-  pages={1-12},
-  keywords={Radar imaging;Radar polarimetry;Radar;Chirp;Trajectory;Sensors;Synthetic aperture radar;Backprojection;complex approximate message passing (CAMP);compressed sensing (CS);frequency-modulated continuous-wave (FMCW);radar;synthetic aperture radar (SAR);unmanned aerial vehicle (UAV)},
-  doi={10.1109/TGRS.2024.3385027}}
-
-@ARTICLE{Zhang_2023,
-  author={Zhang, Guohua and Li, Chao and Wang, Zeyu and Hu, Jianmin and Zheng, Shen and Liu, Xiaojun and Fang, Guangyou},
-  journal={Remote Sensing}, 
-  title={An Efficient Spectrum Reconstruction Algorithm for Non-Uniformly Sampled Signals and Its Application in Terahertz SAR}, 
-  year={2023},
-  volume={15}
- }
-@ARTICLE{Meng_2015,
-  author={Meng, Dadi and Hu, Donghui and Ding, Chibiao},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={Precise Focusing of Airborne SAR Data With Wide Apertures Large Trajectory Deviations: A Chirp Modulated Back-Projection Approach}, 
-  year={2015},
-  volume={53},
-  number={5},
-  pages={2510-2519},
-  keywords={Apertures;Synthetic aperture radar;Azimuth;Chirp;Trajectory;Chirp modulation;Focusing;Motion compensation (MOCO);radar imaging;synthetic aperture radar (SAR);ultrawideband radar;Motion compensation (MOCO);radar imaging;synthetic aperture radar (SAR);ultrawideband radar},
-  doi={10.1109/TGRS.2014.2361134}}
-
-@ARTICLE{Moreira_1994,
-  author={Moreira, A. and Yonghong Huang},
-  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
-  title={Airborne SAR processing of highly squinted data using a chirp scaling approach with integrated motion compensation}, 
-  year={1994},
-  volume={32},
-  number={5},
-  pages={1029-1040},
-  keywords={Azimuth;Image coding;Interpolation;Chirp modulation;Pulse modulation;Signal processing;Time domain analysis;Polarization;Frequency modulation;Frequency domain analysis},
-  doi={10.1109/36.312891}}
-
-@ARTICLE{Focsa_2021,
-  author={Focsa, Adrian and Anghel, Andrei and Datcu, Mihai and Toma, Stefan-Adrian},
-  journal={IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing}, 
-  title={Mixed Compressive Sensing Back-Projection for SAR Focusing on Geocoded Grid}, 
-  year={2021},
-  volume={14},
-  number={},
-  pages={4298-4309},
-  keywords={Radar polarimetry;Matching pursuit algorithms;Focusing;Synthetic aperture radar;Azimuth;Image reconstruction;Compressed sensing;Back-projection;bistatic;compressive sensing (CS);focusing;synthetic aperture radar (SAR)},
-  doi={10.1109/JSTARS.2021.3072208}}
-
-@INPROCEEDINGS{Vehmas_2016,
-  author={Vehmas, Risto and Jylhä, Juha and Väilä, Minna and Visa, Ari},
-  booktitle={2016 IEEE Radar Conference (RadarConf)}, 
-  title={ISAR imaging of non-cooperative objects with non-uniform rotational motion}, 
+@ARTICLE{Yang2016,
+  author={Yang, Zai and Xie, Lihua},
+  journal={IEEE Transactions on Signal Processing}, 
+  title={Enhancing Sparsity and Resolution via Reweighted Atomic Norm Minimization}, 
   year={2016},
-  volume={},
+  volume={64},
+  number={4},
+  pages={995-1006},
+  keywords={Frequency estimation;Optimization;Minimization;Continuous compressed sensing ;Signal resolution;Random access memory;Continuous compressed sensing (CCS);DOA estimation;frequency estimation;gridless sparse method;high resolution;reweighted atomic norm minimization (RAM)},
+  doi={10.1109/TSP.2015.2493987}}
+
+@ARTICLE{Mingjiu2022,
+  author={Mingjiu, Lv and Chen, Wenfeng and Ma, Jianchao and Yang, Jun and Cheng, Qi and Ma, Xiaoyan},
+  journal={IEEE Geoscience and Remote Sensing Letters}, 
+  title={Gridless Sparse ISAR Imaging via 2-D Fast Reweighted Atomic Norm Minimization}, 
+  year={2022},
+  volume={19},
   number={},
-  pages={1-6},
-  keywords={Optimization;Image reconstruction;Time-frequency analysis;Radar imaging;Kernel;Imaging;Signal resolution;inverse synthetic aperture radar;radar imaging;radar signal processing},
-  doi={10.1109/RADAR.2016.7485131}}
+  pages={1-5},
+  keywords={Imaging;Optimization;Sparse matrices;Radar imaging;Minimization;Image resolution;Apertures;Alternating direction method of multipliers (ADMM);atomic norm minimization (ANM);inverse synthetic aperture radar (ISAR);off grid;stepped frequency signal},
+  doi={10.1109/LGRS.2022.3191394}}
 
-@ARTICLE{Zuo_2020,
-  author={Zuo, Lei and Wang, Binbin},
-  journal={IEEE Access}, 
-  title={ISAR Imaging of Non-Uniform Rotating Targets Based on Optimized Matching Fourier Transform}, 
-  year={2020},
-  volume={8},
+%% ----------------------------------- SBL -------------------------------
+
+@article{Tipping2001, author = {Tipping, Michael E.}, title = {Sparse bayesian learning and the relevance vector machine}, year = {2001}, issue_date = {9/1/2001}, publisher = {JMLR.org}, volume = {1}, issn = {1532-4435}, url = {https://doi.org/10.1162/15324430152748236}, doi = {10.1162/15324430152748236}, abstract = {This paper introduces a general Bayesian framework for obtaining sparse solutions to regression and classification tasks utilising models linear in the parameters. Although this framework is fully general, we illustrate our approach with a particular specialisation that we denote the 'relevance vector machine' (RVM), a model of identical functional form to the popular and state-of-the-art 'support vector machine' (SVM). We demonstrate that by exploiting a probabilistic Bayesian learning framework, we can derive accurate prediction models which typically utilise dramatically fewer basis functions than a comparable SVM while offering a number of additional advantages. These include the benefits of probabilistic predictions, automatic estimation of 'nuisance' parameters, and the facility to utilise arbitrary basis functions (e.g. non-'Mercer' kernels). We detail the Bayesian framework and associated learning algorithm for the RVM, and give some illustrative examples of its application along with some comparative benchmarks. We offer some explanation for the exceptional degree of sparsity obtained, and discuss and demonstrate some of the advantageous features, and potential extensions, of Bayesian relevance learning.}, journal = {J. Mach. Learn. Res.}, month = sep, pages = {211–244}, numpages = {34} }
+
+@ARTICLE{Ji2008,
+  author={Ji, Shihao and Xue, Ya and Carin, Lawrence},
+  journal={IEEE Transactions on Signal Processing}, 
+  title={Bayesian Compressive Sensing}, 
+  year={2008},
+  volume={56},
+  number={6},
+  pages={2346-2356},
+  keywords={Bayesian methods;Noise measurement;Vectors;Performance evaluation;Additive noise;Transform coding;Bars;Design for experiments;Machine learning;Discrete wavelet transforms;Adaptive compressive sensing;Bayesian model selection;compressive sensing (CS);experimental design;relevance vector machine (RVM);sparse Bayesian learning},
+  doi={10.1109/TSP.2007.914345}}
+
+@ARTICLE{Xiong2025,
+  author={Xiong, Shichao and Wang, Haobo and Luo, Ying and Li, Kaiming and Zhang, Qun},
+  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
+  title={2-D Off-Grid Laplace Adaptive Pattern-Coupled Sparse Bayesian Learning for ISAR Imaging of Incomplete Data}, 
+  year={2025},
+  volume={63},
   number={},
-  pages={64324-64330},
-  keywords={Imaging;Radar imaging;Estimation;Entropy;Acceleration;Fourier transforms;Time-frequency analysis;Inverse synthetic aperture radar (ISAR);non-uniform rotating targets imaging;matching Fourier transform;gradient descent optimization},
-  doi={10.1109/ACCESS.2020.2984487}}
+  pages={1-17},
+  keywords={Imaging;Bayes methods;Radar imaging;Signal processing algorithms;Computational modeling;Inference algorithms;Translation;Computational efficiency;Bandwidth;Apertures;Inverse synthetic aperture radar (ISAR);limited bandwidth (LB);sparse aperture (SA);sparse Bayesian learning (SBL);sparse signal processing (SSP);structural feature},
+  doi={10.1109/TGRS.2025.3621006}}
 
+@ARTICLE{Liu2014,
+  author={Liu, Hongchao and Jiu, Bo and Liu, Hongwei and Bao, Zheng},
+  journal={IEEE Transactions on Geoscience and Remote Sensing}, 
+  title={Superresolution ISAR Imaging Based on Sparse Bayesian Learning}, 
+  year={2014},
+  volume={52},
+  number={8},
+  pages={5005-5013},
+  keywords={Imaging;Bayes methods;Radar imaging;Image resolution;Vectors;Noise;Signal resolution;Compressive sensing (CS);inverse synthetic aperture radar (SAR) (ISAR);sparse Bayesian learning (SBL);Compressive sensing (CS);inverse synthetic aperture radar (SAR) (ISAR);sparse Bayesian learning (SBL)},
+  doi={10.1109/TGRS.2013.2286402}}
 
-@article{Liu_2023,
-    author = {Liu, Can and Luo, Yunhua and Yu, Zhongjun and Feng, Jie},
-    title = {ISAR Imaging of Non-Stationary Moving Target Based on Parameter Estimation and Sparse Decomposition},
-    journal = {Remote Sensing},
-    year = {2023}
-}
-
-@article{Vehmas_2018,
-  author={Vehmas, Risto and Jylhae, Juha},
-  booktitle={EUSAR 2018; 12th European Conference on Synthetic Aperture Radar}, 
-  title={A Contrast Optimization Algorithm for Back-Projection Image Reconstruction in Noncooperative ISAR Imaging}, 
-  year={2018},
-  volume={},
-  number={},
-  pages={1-6},
-  keywords={},
-  doi={}}
-
-@BOOK{Woods2011,
-  author = {John W. Woods},
-  title = {{M}ultidimensional {S}ignal {I}mage, and {V}ideo {P}rocessing and {C}oding},
-  publisher = {{E}lsevier {i}nc},
-  year = {2011},
-  edition = {2}
-}

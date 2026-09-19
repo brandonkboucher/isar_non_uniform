@@ -26,8 +26,18 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         num_plots = num_plots + 1;
     end
 
+    if isfield(options, 'execute_mod_omp_newton') ...
+            && options.execute_mod_omp_newton
+        num_plots = num_plots + 1;
+    end
+
     if isfield(options, 'execute_nomp') ...
             && options.execute_nomp
+        num_plots = num_plots + 1;
+    end
+
+    if isfield(options, 'execute_nomp_newton') ...
+            && options.execute_nomp_newton
         num_plots = num_plots + 1;
     end
 
@@ -56,13 +66,21 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
     f = figure('Visible','off');
     iplot = 1;
 
-    if isfield(options, 'execute_nomp') ...
-            && options.execute_nomp
+    % NOMP and the exact-Newton variant share one panel layout
+    nomp_variants = {'execute_nomp',        'nomp',        'NOMP'; ...
+                     'execute_nomp_newton', 'nomp_newton', 'NOMP (exact Newton)'};
+    for iv = 1:size(nomp_variants, 1)
+        if ~(isfield(options, nomp_variants{iv,1}) ...
+                && options.(nomp_variants{iv,1}))
+            continue
+        end
+        fld       = nomp_variants{iv,2};
+        alg_title = nomp_variants{iv,3};
 
         T = target_locations; 
-        E = x_hat.nomp.positions;
-        d = x_hat.nomp.d;
-        pairs = x_hat.nomp.pairs;
+        E = x_hat.(fld).positions;
+        d = x_hat.(fld).d;
+        pairs = x_hat.(fld).pairs;
 
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
@@ -125,15 +143,16 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         if isempty(d)
             title(h, 'No matched pairs');
         else
-            title(h, sprintf('NOMP RMSE %.4g  |  matched %d  |  missed %d  |  FA %d', ...
-                sqrt(mean(d.^2)), numel(d), numel(uT), numel(uE)), 'FontSize', title_font_size);
+            title(h, sprintf('%s RMSE %.4g  |  matched %d  |  missed %d  |  FA %d', ...
+                alg_title, sqrt(mean(d.^2)), numel(d), numel(uT), numel(uE)), 'FontSize', title_font_size);
         end
     
         if ~wasHold
             hold(h, 'off');
         end
-        xlim([min(x_array), max(x_array)])
-        ylim([min(y_array)+u0, max(y_array)+u0])
+        [xa, ya] = result_arrays(x_hat.(fld), x_array, y_array);
+        xlim([min(xa), max(xa)])
+        ylim([min(ya)+u0, max(ya)+u0])
         set(gca,'FontSize',font_size)
         axis square
     end
@@ -296,19 +315,28 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         if ~wasHold
             hold(h, 'off');
         end
-        xlim([min(x_array), max(x_array)])
-        ylim([min(y_array)+u0, max(y_array)+u0])
+        [xa, ya] = result_arrays(x_hat.omp, x_array, y_array);
+        xlim([min(xa), max(xa)])
+        ylim([min(ya)+u0, max(ya)+u0])
         set(gca,'FontSize',font_size)
         axis square
     end
 
-    if isfield(options, 'execute_mod_omp') ...
-            && options.execute_mod_omp
+    % the repo mod-OMP and the exact-Newton variant share one panel layout
+    mod_omp_variants = {'execute_mod_omp',        'mod_omp',        'Modified OMP'; ...
+                        'execute_mod_omp_newton', 'mod_omp_newton', 'mod-OMP (exact Newton)'};
+    for iv = 1:size(mod_omp_variants, 1)
+        if ~(isfield(options, mod_omp_variants{iv,1}) ...
+                && options.(mod_omp_variants{iv,1}))
+            continue
+        end
+        fld       = mod_omp_variants{iv,2};
+        alg_title = mod_omp_variants{iv,3};
 
         T = target_locations; 
-        E = x_hat.mod_omp.positions;
-        d = x_hat.mod_omp.d;
-        pairs = x_hat.mod_omp.pairs;
+        E = x_hat.(fld).positions;
+        d = x_hat.(fld).d;
+        pairs = x_hat.(fld).pairs;
 
         subplot(1,num_plots,iplot)
         iplot = iplot + 1;
@@ -371,14 +399,14 @@ function [outputArg1,outputArg2] = plot_all_pairings(...
         if isempty(d)
             title(h, 'No matched pairs');
         else
-            title(h, sprintf('Modified OMP RMSE %.4g  |  matched %d  |  missed %d  |  FA %d', ...
-                sqrt(mean(d.^2)), numel(d), numel(uT), numel(uE)), 'FontSize', title_font_size);
+            title(h, sprintf('%s RMSE %.4g  |  matched %d  |  missed %d  |  FA %d', ...
+                alg_title, sqrt(mean(d.^2)), numel(d), numel(uT), numel(uE)), 'FontSize', title_font_size);
         end
     
         % mark the unambiguous crossrange band while the axes are still
         % held, so which ambiguity an estimate landed in is readable
-        if isfield(x_hat.mod_omp, 'Wx') && ~isempty(x_hat.mod_omp.Wx)
-            for edge = [-0.5 0.5] * x_hat.mod_omp.Wx
+        if isfield(x_hat.(fld), 'Wx') && ~isempty(x_hat.(fld).Wx)
+            for edge = [-0.5 0.5] * x_hat.(fld).Wx
                 plot(h, [edge edge], [min(y_array) max(y_array)] + u0, '--', ...
                     'Color', [0.5 0.5 0.5], 'LineWidth', 1, ...
                     'HandleVisibility', 'off');
@@ -512,4 +540,14 @@ function lim = pad_limits(v)
         pad = (hi - lo) * 0.05;
     end
     lim = [lo - pad, hi + pad];
+end
+
+function [xa, ya] = result_arrays(res, x_array, y_array)
+% RESULT_ARRAYS  The grid an algorithm's result was formed on: its own
+% x_array/y_array when it carries them (OMP and NOMP run on a dictionary
+% spanning more ambiguities than the image former), else the shared ones.
+
+    xa = x_array; ya = y_array;
+    if isfield(res, 'x_array') && ~isempty(res.x_array), xa = res.x_array; end
+    if isfield(res, 'y_array') && ~isempty(res.y_array), ya = res.y_array; end
 end
