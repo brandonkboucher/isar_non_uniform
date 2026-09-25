@@ -15,7 +15,7 @@ clc
 
 % create scenario and option structs
 % [sc, options, radar] = create_scenario();
-[sc,options,radar] = create_scenario_baselines_win();
+[sc,options,radar] = create_scenario();
 rng(options.seed)
 
 %% radar parameters
@@ -497,6 +497,14 @@ if use_baseline_grid
     fprintf(';  A_base (OMP, NOMP) %.3f s, %d atoms', time_A_base, K_base);
 end
 fprintf('\n\n');
+
+% the same table as CSV, in the columns the sweep's results/ CSVs use
+if options.save_results
+    csv_file = write_scenario_csv(x_hat, alg_names, alg_label, alg_atoms, ...
+        alg_build, struct('seed', options.seed, ...
+        'num_of_scatterers', sc.num_of_scatterers, 'Wx', grid.Wx));
+    fprintf('  wrote %s\n\n', csv_file);
+end
 
 if options.save_plots
 

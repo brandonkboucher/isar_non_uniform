@@ -33,6 +33,10 @@ function test_paper_sweep(mode, n_iter)
 %   run, which is the cost when a dictionary cannot be reused across
 %   measurements.
 %
+%   Every run also writes results/paper_sweep_summary.csv (one row per arm)
+%   and results/paper_sweep_errors.csv (one row per draw), via
+%   WRITE_SWEEP_CSV, whatever the mode.
+%
 %   See also RUN_PAPER_SWEEP, PAPER_SWEEP_SETTINGS, TEST_SCENARIO_REGRESSION.
 
     if nargin < 1 || isempty(mode), mode = 'compare'; end
@@ -98,7 +102,7 @@ function test_paper_sweep(mode, n_iter)
     res = run_paper_sweep(n_iter, true);
     fprintf('\n  %d draws in %.1f s\n', res.n_iter, toc(t0));
 
-    report(res, gross);
+    % run_paper_sweep already printed the table and wrote the CSVs
     check_invariants(res, gross);
 
     % ---- regenerate ----------------------------------------------------
@@ -135,44 +139,6 @@ function test_paper_sweep(mode, n_iter)
     end
     error('test_paper_sweep:regression', ...
         '%d of %d arms moved from the baseline', numel(bad), numel(res.labels));
-end
-
-% ------------------------------------------------------------------------
-function report(res, gross)
-% the summary the paper quotes, plus the per-measurement cost
-
-    td  = [res.time_A_mod, res.time_A_base];
-    run_s  = res.T / res.n_iter;
-    dict_s = td(res.arm_dict);
-
-    fprintf('\n  Wx %.3f m, 2D range offset %.3f m, miss penalty %.3f m\n', ...
-        res.Wx, res.range_offset, res.miss_penalty);
-    fprintf('  dictionaries: A_mod %d atoms in %.2f s, A_base %d atoms in %.2f s\n\n', ...
-        res.K_mod, res.time_A_mod, res.K_base, res.time_A_base);
-
-    fprintf('  %-26s %8s %8s %8s %6s %9s %11s\n', 'arm', 'median', 'mean<1m', ...
-        'p90', 'gross', 'run/draw', 'per meas.');
-    fprintf('  %s\n', repmat('-', 1, 84));
-    for a = 1:numel(res.labels)
-        e = res.E(:,a);
-        fprintf('  %-26s %8.4f %8.4f %8.4f %6d %7.1f ms %9.3f s\n', res.labels(a), ...
-            median(e), mean(e(e < gross)), pct90(e), sum(e >= gross), ...
-            1e3*run_s(a), run_s(a) + dict_s(a));
-    end
-    fprintf('  %s\n', repmat('-', 1, 84));
-    fprintf(['  gross = draws with a scatterer in the wrong place (>= %.1f m RMS).\n' ...
-        '  per meas. = dictionary build + one run, the cost when the dictionary\n' ...
-        '  cannot be reused across measurements.\n'], gross);
-end
-
-% ------------------------------------------------------------------------
-function p = pct90(e)
-% 90th percentile by nearest rank, so the report does not need prctile (and
-% with it the Statistics toolbox) -- the same reason
-% calculate_reconstruction_error builds its cost matrix by hand
-    e = sort(e(~isnan(e)));
-    if isempty(e), p = NaN; return, end
-    p = e(max(1, ceil(0.90 * numel(e))));
 end
 
 % ------------------------------------------------------------------------

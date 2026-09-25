@@ -1,4 +1,4 @@
-function res = run_paper_sweep(n_iter, progress)
+function res = run_paper_sweep(n_iter, progress, do_report)
 % RUN_PAPER_SWEEP  The Monte Carlo comparison behind the paper's numbers.
 %
 %   res = RUN_PAPER_SWEEP(n_iter) draws n_iter scatterer sets (default 500)
@@ -33,6 +33,9 @@ function res = run_paper_sweep(n_iter, progress)
 %     time_A_mod, time_A_base, K_mod, K_base   dictionary build times and sizes
 %     Wx, range_offset, settings, n_iter, base_seed
 %
+%   Unless DO_REPORT is false, the summary table is printed (REPORT_SWEEP) and
+%   written to results/ as CSV (WRITE_SWEEP_CSV) before returning.
+%
 %   Timings are wall clock and machine dependent, so TEST_PAPER_SWEEP checks E
 %   and reports times without asserting on them.
 %
@@ -40,6 +43,17 @@ function res = run_paper_sweep(n_iter, progress)
 
     if nargin < 1 || isempty(n_iter),   n_iter = 500;    end
     if nargin < 2 || isempty(progress), progress = true; end
+    if nargin < 3 || isempty(do_report), do_report = true; end
+
+    % run from anywhere: this file lives in tests/, so the project root is one
+    % level up. archive/ holds superseded copies of live functions and must
+    % never shadow them; claude_scratch still holds mod_omp_newton.
+    root = fileparts(fileparts(mfilename('fullpath')));
+    fn_dirs = strsplit(genpath(fullfile(root, 'functions')), pathsep);
+    fn_dirs = fn_dirs(~cellfun(@isempty, fn_dirs));
+    fn_dirs = fn_dirs(~contains(lower(fn_dirs), [filesep 'archive']));
+    addpath(root, fullfile(root, 'tests'), fullfile(root, 'claude_scratch'), ...
+        strjoin(fn_dirs, pathsep));
 
     [sc, options, radar] = paper_sweep_settings();
     base_seed = options.seed;
@@ -143,6 +157,15 @@ function res = run_paper_sweep(n_iter, progress)
         'Wx', grid_mod.Wx, 'range_offset', grid_mod.range_offset, ...
         'miss_penalty', miss_penalty, 'n_iter', n_iter, 'base_seed', base_seed, ...
         'settings', struct('sc', sc, 'options', options, 'radar', radar));
+
+    if do_report
+        report_sweep(res);
+        files = write_sweep_csv(res);
+        for i = 1:numel(files)
+            fprintf('  wrote %s\n', files{i});
+        end
+        fprintf('\n');
+    end
 end
 
 function [A, walk] = build_dict(g, u0, th, f, fc, ura)

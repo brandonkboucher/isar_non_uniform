@@ -5,6 +5,7 @@
 **/dev
 **/.DS_Store
 **/results
+*.csv
 functions/archive
 classes/Targets/archive
 scenarios/archive

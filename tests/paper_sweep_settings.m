@@ -30,6 +30,8 @@ function [sc, options, radar] = paper_sweep_settings()
     options.execute_nomp                = true;
     options.execute_promp               = false;
     options.execute_mod_omp             = true;
+    options.execute_mod_omp_newton      = true; % mod-OMP with newton_method_exact + cyclic refinement
+    options.execute_nomp_newton         = true;
     options.save_results                = false;
     options.save_plots                  = false;   % never delete plots/ from a test
     options.save_histories              = false;
@@ -42,15 +44,15 @@ function [sc, options, radar] = paper_sweep_settings()
     options.residual_threshold          = [];      % no noise, so no early stop
 
     %% scenario
-    sc.num_of_scatterers            = 3;
+    sc.num_of_scatterers            = 7;
     sc.is_target_accelerating       = true;
     sc.is_target_maneuvering        = false;
     sc.is_grid_oversampled          = true;
     sc.is_closely_spaced            = false;
     sc.is_off_grid                  = true;
-    sc.num_amb_having_scatterers    = 3;   % scatterers spread over three bands
+    sc.num_amb_having_scatterers    = 7;   % scatterers spread over three bands
     sc.num_amb_in_image_former      = 1;   % mod-OMP's image former
-    sc.num_amb_in_image_former_baselines = 3;  % OMP's and NOMP's dictionary
+    sc.num_amb_in_image_former_baselines = 7;  % OMP's and NOMP's dictionary
     sc.yaw_acceleration             = 170; % [rad/s/s]
     sc.yaw_jerk                     = 0;   % [rad/s/s/s]
     sc.target_magnitude             = 5;

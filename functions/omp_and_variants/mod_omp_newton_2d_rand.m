@@ -68,24 +68,18 @@ function [alpha_hat, p_hat, cand] = mod_omp_newton_2d_rand(...
     %     :ceil(num_offsets_y/2)*grid.range_pixel_res;
 
     % for the randomized grid points, I think we should
-    % define the total number of grid points a priori
-
-    x_offsets = Wx_offset_range ...
-        * rand(sc.num_offsets_pixels,1) ...
-        - Wx_offset_range/2;
-    y_offsets = grid.range_offset ...
-        * rand(sc.num_offsets_pixels,1) ...
-        - grid.range_offset/2;
+    % define the total number of grid points a priori. The offsets themselves
+    % are drawn per detection, inside the loop below: one draw for the whole
+    % measurement would reuse the same neighborhood for every scatterer, so a
+    % draw that happened to miss a mainlobe would miss it every time.
 
     % x_offsets = (-sc.num_offsets_pixels*res):res:(sc.num_offsets_pixels*res);
     % [AMB, xOFF, yOFF] = ndgrid(amb_index, x_offsets, y_offsets);
-    
-    AMB = repmat(amb_index.', size(x_offsets,1),1);
-    xOFF = repelem(x_offsets, size(amb_index,2),1);
-    yOFF = repelem(y_offsets, size(amb_index,2),1);
+
+    AMB = repmat(amb_index.', sc.num_offsets_pixels, 1);
 
     num_of_total_candidates     = numel(AMB);
-    num_of_opt_candidates       = floor(numel(AMB)/2);
+    num_of_opt_candidates       = floor(num_of_total_candidates/2);
 
     selected_idx = [];
     As        = zeros(ML, sparsity);
@@ -110,6 +104,18 @@ function [alpha_hat, p_hat, cand] = mod_omp_newton_2d_rand(...
         x0 = grid.xk(l); y0 = grid.yk(l);
 
         %------------- select atoms for optimization --------------------
+
+        % a fresh neighborhood for this detection: one offset pair per
+        % candidate, shared by every ambiguity
+        x_offsets = Wx_offset_range ...
+            * rand(sc.num_offsets_pixels,1) ...
+            - Wx_offset_range/2;
+        y_offsets = grid.range_offset ...
+            * rand(sc.num_offsets_pixels,1) ...
+            - grid.range_offset/2;
+
+        xOFF = repelem(x_offsets, size(amb_index,2),1);
+        yOFF = repelem(y_offsets, size(amb_index,2),1);
 
         % define the positions of each candidate scatterer
         seed = [x0 + AMB(:).'*grid.Wx + xOFF(:).'; ...
