@@ -1,4 +1,5 @@
 \section{BACKGROUND}
+\label{sec:background}
 
 ISAR imaging requires translational motion compensation and rotational motion compensation. Translational motion compensation is typically regarded as trivial and does not add anything outside of undesirable blurring. Assuming the translational motion compensation has been appropriately applied, Figure \ref{fig:geo} depicts the geometry of the target during ISAR imaging where the target is rotating between pulses.
 
@@ -13,7 +14,7 @@ The crossrange resolution of ISAR images is dictated by the rotation of the targ
   \label{fig:geo}
 \end{figure}
 
-\noindent The relative position of a scattering point as a function of slow-time ($t_{m}$) can be defined as \cite{Xu2022}:
+\noindent The relative position of a scattering point as a function of slow-time ($t_{m}$) can be defined as [\citenum{Xu2022}]:
 
 \begin{equation}
     \begin{bmatrix}
@@ -32,7 +33,7 @@ The crossrange resolution of ISAR images is dictated by the rotation of the targ
 \end{equation}
 
 
-\noindent where $\theta(t_{m})$ or $\theta_m$ is the angle of the target scatterer relative to the $y$-axis, and $[x_{k}, y_{k}]^{T}$ is the initial position of the $k$-th scatterer relative to the center of the rotation of the target. The range from the origin located at the radar to a scattering point is \cite{Xu2022}:
+\noindent where $\theta(t_{m})$ or $\theta_m$ is the angle of the target scatterer relative to the $y$-axis, and $[x_{k}, y_{k}]^{T}$ is the initial position of the $k$-th scatterer relative to the center of the rotation of the target. The range from the origin located at the radar to a scattering point is [\citenum{Xu2022}]:
 \begin{equation}
     \begin{aligned}
         r_{k}(t_m) &= \sqrt{x_{k}^2(t_m) + (y_k(t_{m}) + u_{0})^2}\\
@@ -104,33 +105,40 @@ The crossrange resolution of ISAR images is dictated by the rotation of the targ
   \label{fig:sensing_matrix}
 \end{figure}
 
-This system is underdetermined and has infinitely many solutions, each existing in the ($N-M$)-dimensional null space of the sensing matrix. However, to treat this as a compressed sensing problem, if the latent image can be assumed $K$-sparse or containing $K$ non-zero values, the problem becomes $K$-dimensional where $M \geq K$. Additionally, if the sensing matrix is roughly orthogonal and incoherent, associated with the Restricted Isometric Property (RIP), the solution can be unique \cite{Majumdar_2018}. The compressed sensing problem can then be formulated as:
-
-\begin{equation}
-    \min_{x} ||x||_{0} \quad \text{subject to} \quad y = Ax
-    \label{eq:l0}
-\end{equation}
-
 \subsection{OMP}
 \label{sec:omp}
-There are many different compressed sensing techniques, and Greedy algorithms like Orthogonal Matching Pursuit (OMP) are effective for non-linear recovery \cite{Bostock_2017}. For a Hermitian sensing matrix ($A$) where $A^{-1} = A^{H}$, OMP iterates through a defined sparsity ($K$) and finds the indices ($\Lambda$) that maximize the projection of the residual, initialized as the measurement, onto the basis vectors formed by $A$. The maximization of the residual selects the coefficients projected on the basis vectors formed by $A$, and the step $r = y - A \hat{X}$ prevents the re-selection of the same indices. The latent image estimation $\hat{X}$ is the least-squares approximation formed from the selected basis vectors of $A$. Algorithm \ref{algo:OMP} formally describes the OMP algorithm \cite{Majumdar_2018}.
+
+This system is underdetermined and has infinitely many solutions, each existing in the ($N-M$)-dimensional null space of the sensing matrix. However, to treat this as a compressed sensing problem, if the latent image can be assumed $K$-sparse or containing $K$ non-zero values, the problem becomes $K$-dimensional where $M \geq K$. Additionally, if the sensing matrix is roughly orthogonal and incoherent, associated with the Restricted Isometric Property (RIP), the solution can be unique [\citenum{Majumdar_2018}]. The compressed sensing problem can then be formulated as:
+
+\begin{equation}
+    \begin{aligned}
+    &\min \|x\|_{0} \quad \text{subject to} \quad \|y - Ax\|_{2}^{2} \leq \text{constant}\\
+    \text{or} \quad &\min \|y - Ax\|^{2}_{2} \quad \text{subject to} \quad  \|x\|_{0} \leq \text{sparsity}
+    \label{eq:l0}
+    \end{aligned}
+\end{equation}
+
+There are many different compressed sensing techniques, and Greedy algorithms like Orthogonal Matching Pursuit (OMP) are effective for non-linear recovery [\citenum{Bostock_2017}]. For a Hermitian sensing matrix ($A$) where $A^{-1} = A^{H}$, OMP iterates through a defined sparsity ($K$) and finds the indices ($\Lambda$) that maximize the projection of the residual, initialized as the measurement ($s$), onto the basis vectors formed by $A$. The maximization of the residual selects the coefficients projected on the basis vectors formed by $A$, and the step $r \gets s - A_s\hat{\alpha}$ prevents the re-selection of the same indices. The coefficients $\hat{\alpha}$ are the least-squares approximation formed from the selected basis vectors $A_s$, and they populate the latent image on the support $\Lambda$. Algorithm \ref{algo:OMP} formally describes the OMP algorithm [\citenum{Majumdar_2018}]. It is written here in the notation of Section \ref{sec:methods} so that the two modifications AR-OMP makes, Algorithm \ref{algo:AROMP}, are visible as changes to single lines: the selected atom $a_\ell$ is replaced by the best of its ambiguous, off-grid candidates, and a cyclic refinement of every selected atom is inserted before the residual update.
 
 \begin{algorithm}[H]
 \caption{Orthogonal Matching Pursuit}\label{algo:OMP}
 \begin{algorithmic}[1]
-\Procedure{OMP}{$H,N$}
-\State $\Lambda\gets []$
-\State $r \gets y$
-\State $\hat{X} \gets 0$
-\For{$i \leq K$}
-\State $c\gets A^{H}r$
-\State $\Lambda = \arg\max_{i} \big| c_i \big|$
-\State $\Lambda \gets \begin{bmatrix} \Lambda \\ l \end{bmatrix}$
-\State $\hat{X} \gets (A(\Lambda)^{H}A(\Lambda))^{-1}A(\Lambda)^{H}y$
-\State $r \gets y - A\hat{X}$
-\State $i \gets i + 1$
+\Procedure{OMP}{$A, s, K, \tau$}
+  \Comment{dictionary, measurement, sparsity, noise level}
+\State $\Lambda \gets \emptyset$,\; $A_s \gets [\,]$,\; $r \gets s$
+\For{$i = 1$ \textbf{to} $K$}
+  \State $c \gets A^{H}r$,\quad $c_\Lambda \gets 0$
+    \Comment{mask atoms already selected}
+  \State $\ell \gets \arg\max_{j}|c_j|$,\quad $\Lambda \gets \Lambda \cup \{\ell\}$
+    \Comment{detection}
+  \State $A_s \gets [A_s,\, a_\ell]$
+    \Comment{the selected atom, as it sits on the grid}
+  \State $\hat{\alpha} \gets (A_s^{H}A_s)^{-1}A_s^{H}s$
+  \State $r \gets s - A_s\hat{\alpha}$
+  \State \textbf{if} $\|r\|_2 \leq \tau$ \textbf{then break}
+    \Comment{residual has reached the noise level}
 \EndFor
-\State \textbf{return} $\hat{X}$
+\State \textbf{return} $\hat{\alpha},\, \Lambda$
 \EndProcedure
 \end{algorithmic}
 \end{algorithm}

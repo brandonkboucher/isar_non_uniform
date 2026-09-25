@@ -8,6 +8,14 @@
 \usepackage{graphicx}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
+
+% Algorithm comments sit in a fixed-width column against the right margin, so
+% every comment starts at the same place and a long one wraps at that column
+% rather than back at the left margin.
+\newlength{\algcommentwidth}
+\setlength{\algcommentwidth}{0.42\linewidth}
+\algrenewcommand{\algorithmiccomment}[1]{%
+  \hfill\parbox[t]{\algcommentwidth}{\raggedright$\triangleright$~#1}}
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 \newcommand{\mycomment}[1]{}
 

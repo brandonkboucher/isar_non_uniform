@@ -2,34 +2,26 @@
 \section{Methods}
 \label{sec:methods}
 
-The intention of this section is to walk through the proposed modifications to OMP to handle Doppler ambiguities and off-grid target scatterers. Algorithm \ref{algo:AROMP} illustrates the steps of AR-OMP. AR-OMP is similar in principle to the original OMP algorithm described in Section \ref{sec:omp} where atoms are selected based on maximization with the residual. However, AR-OMP makes two distinct modifications, assessment of candidate ambiguous atoms from an initial detection in the unambiguous region and off-grid refinement. Section \ref{sec:atom_selection} reviews the candidate atom selection represented as Step 10 in Algorithm \ref{algo:AROMP}. Section \ref{sec:off_grid} covers the off-grid refinement in the local neighborhoods of the ambiguous scatterers, Step 11 in Algorithm \ref{algo:AROMP}.
+The intention of this section is to walk through the proposed modifications to OMP to handle Doppler ambiguities and off-grid target scatterers. Algorithm \ref{algo:AROMP} illustrates the steps of AR-OMP. AR-OMP is similar in principle to the original OMP algorithm described in Section \ref{sec:omp} where atoms are selected based on maximization with the residual. However, AR-OMP makes two distinct modifications, assessment of candidate ambiguous atoms from an initial detection in the unambiguous region and off-grid refinement. Section \ref{sec:atom_selection} reviews the candidate atom selection, \textsc{SelectCandidate} in Algorithm \ref{algo:AROMP} and detailed in Algorithm \ref{algo:candidates}. Section \ref{sec:off_grid} covers the off-grid refinement in the local neighborhoods of the ambiguous scatterers, \textsc{Refine} and \textsc{CyclicRefine} in Algorithm \ref{algo:refine}.
 
 \begin{algorithm}[ht]
-\caption{Ambiguity-Refined Orthogonal Matching Pursuit}\label{algo:AROMP}
+\caption{Doppler Ambiguity Refined Orthogonal Matching Pursuit (DAR-OMP)}\label{algo:AROMP}
 \begin{algorithmic}[1]
-\Procedure{AR-OMP}{$A, \mathbf{p}, s, W_x, N, \mathcal{D}, K, \tau$}
-  \Comment{dictionary, grid positions, measurement, unambiguous
-           extent, number of ambiguities, neighbourhood offsets,
-           sparsity, noise level}
+\Procedure{AR-OMP}{$A, \mathbf{p}, s, K, \tau, R_c, \Delta_{c}, \Delta_{r}$}
+  \Comment{dictionary of the unambiguous region, grid positions,
+           measurement, sparsity, noise level, refinement cycles, crossrange search extent, range extent}
 \State $\Lambda \gets \emptyset$,\; $A_s \gets [\,]$,\; $\hat{P} \gets [\,]$,\; $r \gets s$
-\State $\mathcal{N} \gets \{\lceil n/2 \rceil(-1)^n : n = 0,\dots,N-1\}$
-  \Comment{ambiguity indices, e.g. $\{-1,0,1\}$}
 \For{$i = 1$ \textbf{to} $K$}
   \State $c \gets A^{H}r$,\quad $c_\Lambda \gets 0$
     \Comment{mask atoms already selected}
   \State $\ell \gets \arg\max_{j}|c_j|$,\quad $\Lambda \gets \Lambda \cup \{\ell\}$
-  \State $(x_0,y_0) \gets \mathbf{p}_\ell$,\quad $\gamma^\star \gets -\infty$
-  \For{$n \in \mathcal{N}$}
-    \For{$\delta \in \mathcal{D}$}
-      \State $\hat{p} \gets \textsc{Newton}(r,\, x_0 + nW_x + \delta,\, y_0)$
-      \State $a \gets \vartheta(\hat{p})$,\quad $\gamma \gets |a^{H}r|$
-      \If{$\gamma > \gamma^\star$}
-        \State $\gamma^\star \gets \gamma$,\; $a^\star \gets a$,\; $p^\star \gets \hat{p}$
-      \EndIf
-    \EndFor
-  \EndFor
+    \Comment{detection in the unambiguous region}
+  \State $(a^\star, p^\star) \gets \textsc{SelectCandidate}(r,\, \mathbf{p}_\ell, \Delta_{c}, \Delta_{r})$
+    \Comment{Algorithm \ref{algo:candidates}}
   \State $A_s \gets [A_s,\, a^\star]$,\quad $\hat{P} \gets [\hat{P},\, p^\star]$
   \State $\hat{\alpha} \gets (A_s^{H}A_s)^{-1}A_s^{H}s$
+  \State $(\hat{P}, A_s, \hat{\alpha}) \gets \textsc{CyclicRefine}(s,\, \hat{P},\, R_c)$
+    \Comment{Algorithm \ref{algo:refine}}
   \State $r \gets s - A_s\hat{\alpha}$
   \State \textbf{if} $\|r\|_2 \leq \tau$ \textbf{then break}
     \Comment{residual has reached the noise level}
@@ -42,10 +34,139 @@ The intention of this section is to walk through the proposed modifications to O
 \subsection{Ambiguous candidate atom selection}
 \label{sec:atom_selection}
 
+% This section discuss how we form the ambiguous neighborhood:
+% 1. Doppler ambiguity width and range-walk
+% 2. Randomized positions and refinement via correlation
 
+% motivation for why you need a neighborhood
+Because the motion parameters of the target are assumed to be known, the ambiguous doppelganger atoms of an unambiguous target scatterer are known to an extent. The ambiguous scatterers are approximately a Doppler width away from the position in the unambiguous region. Additionally, the range is approximately known and should be near the range of the unambiguous target scatterer. However, the position of the ambiguous scatterers are not percisely known as a consequence of the non-uniform motion. The non-uniform motion smears the scatterers in the alternate ambiguities. For example, a scatterer located in a -1 ambiguity is sharp with a well-defined mainlobe, but the target is progressively smeared more and more when evaluating the same scatterer at ambiguities 0, +1, +2, etc. The most straightforward method for accounting for the target smearing in other ambiguities is to expand the sensing matrix to include all other ambiguities. However, adding all ambiguities of interest increases the dimensionality of the sensing matrix from $K$ atoms to $N_{a}*K$ atoms, where $N_{a}$ is the number of ambiguities. Alternatively a more targeted approach is to evaluate only a select number of candidate atoms in alternate ambiguiites. This collection of atoms in each ambiguity will be referred to as a neighborhood. Evaluating only neighborhoods maintains the dimensionality of the sensing matrix during formation and equates to evaluating $K + N_{a}*K_{a}$ atoms, where $K_{a}$ is the number of atoms per ambiguity.
+
+% defining the neighborhood
+To define the neighborhood in the crossrange, the Doppler width can be used to search in localized regions. The Doppler width defines unambiguous and ambiguous regions and can be derived from the boundaries of the ambiguities. For a scatterer to be unambiguous, the Doppler frequency must be less than half of the PRF, $2*f_{D} < \text{prf}$, where $f_{D} = \omega \times W_{x} / \lambda$. Therefore, the Doppler width or the boundaries between ambiguities is defined as:
+
+\begin{equation}
+  \begin{aligned}
+    2 f_{D} &= \text{prf} \\
+    2 \omega \times W_{x} / \lambda &= \text{prf} \quad \textrm{where for a tabletop} \quad \omega \times W_{x} = \omega W_{x} \\ 
+    W_{x} &= (\text{prf}) \lambda / 2 \omega
+  \end{aligned}
+\end{equation}
+
+\noindent However, $\omega$ is a function of slow-time for a non-uniformly rotating target and thereby the Doppler width is also a function of slow-time. To account for the change in the Doppler width as a function of slow-time, we propose to create a neighborhood of candidate scatterers. In the crossrange direction, the extent of the neighborhood is the change in the Doppler width, $\Delta_{c} = \max(W_{x}(t_{m})) - \min(W_{x}(t_{m}))$. For each detected scatterer in the unambiguous region, the crossrange neighborhood is defined as $[x \pm n_{a}\bar{W_x} - \Delta_{c}/2, x \pm n_{a}\bar{W_x} + \Delta_{c}/2]$ where $x$ is the detected crossrange and $n_{a}$ is the ambiguity number. Ambiguous scatterers have variation in range as a consequence of range-walk [\citenum{Huang2016,Liu2022}]. Using the same principle as the crossrange neighborhood extent, the range extent is defined as the absolute value of the maximum range-walk across all scatterers, $\Delta_{r} = \max(r_{k}(t_{m})) - \min(r_{k}(t_{m}))$, where $r_{k}(t_{m})$ is the range of the $k$-th scatterer. For each detected scatterer in the unambiguous region, the range neighborhood is defined as $[y - n_{a}\Delta_{r}/2, y + n_{a}\Delta_{r}/2]$. 
+
+% randomization of neighborhood atoms and refinement of candidate atoms
+
+To form the neighborhood, uniformly randomize the positions of $K_a$ candidate atoms within each ambiguity. The randomization distributes the atoms evenly across the neighborhood and prevents poor, systemic initialization of atoms like a line of atoms tracing along a sidelobe. Additionally, to further reduce the number of candidate atoms evaluated, the set of candidate atoms can be refined. The set of candidate atoms forms a dictionary $A_{c} = [a_{1,1}, \dots a_{1,K_{a}}, a_{2, 1}, \dots, a_{n_{a}, k_{a}} a_{Na, K_{a}}]$ where $n_{a}$ is the ambiguity index and $k_{a}$ is the candidate atom index for a given $n_{a}$. To discard poorly placed candidate atoms, calculate the correlation of the dictionary $A_{c}$ with the residual $r$ and retain the top $K_{a}'$ atoms such that $K_{a}' < K_{a}$. Algorithm \ref{algo:candidates} depicts the candidate atom selection mechanism and refinement. 
+
+
+\begin{algorithm}[ht]
+\caption{Ambiguous candidate atom selection}\label{algo:candidates}
+\begin{algorithmic}[1]
+\Procedure{SelectCandidate}{$r,\, (x_0,y_0), \Delta_{c}, \Delta_{r}$}
+  \Comment{residual, detected position in the unambiguous region, crossrange search extent, range extent}
+\State $\mathcal{N} \gets \{\lceil n/2 \rceil(-1)^n : n = 0,\dots,N_a-1\}$
+  \Comment{ambiguity indices, e.g. $\{-1,0,1\}$}
+\For{$k = 1$ \textbf{to} $K_a$}
+  \State $\delta^x_k \sim \mathcal{U}(-\Delta_c/2,\, \Delta_c/2)$,\quad
+         $\delta^y_k \sim \mathcal{U}(-\Delta_r/2,\, \Delta_r/2)$
+    \Comment{one offset pair per candidate, shared by every ambiguity}
+\EndFor
+\State $\mathcal{C} \gets \{\,(x_0 + n_a\bar{W}_x + \delta^x_k,\; y_0 + \delta^y_k)
+        \;:\; n_a \in \mathcal{N},\; k = 1,\dots,K_a \,\}$
+\State $A_c \gets [\,a(p)\,]_{p \in \mathcal{C}}$
+  \Comment{$N_aK_a$ candidate atoms, never stored in $A$}
+\State $\mathcal{C}' \gets$ the $K_a'$ positions of $\mathcal{C}$ with largest $|A_c^{H}r|$
+  \Comment{screening, $K_a' = \lfloor N_aK_a/2 \rfloor$}
+\State $\gamma^\star \gets -\infty$
+\For{$p \in \mathcal{C}'$}
+  \State $\hat{p} \gets \textsc{Refine}(r,\, p)$
+    \Comment{Algorithm \ref{algo:refine}}
+  \State $\gamma \gets |a(p)^{H}r|$
+  \If{$\gamma > \gamma^\star$}
+    \State $\gamma^\star \gets \gamma$,\; $a^\star \gets a(p)$,\; $p^\star \gets \hat{p}$
+  \EndIf
+\EndFor
+\State \textbf{return} $a^\star,\, p^\star$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
 \subsection{Off-grid neighborhood refinement}
 \label{sec:off_grid}
 
-\subsection{Complexity}
-\label{sec:complexity}
+% This section discusses how we optimize atoms:
+% 1. Full Newton's method
+%   1. motivation as to why assume the coefficient is dependent on the position
+%   2. show the equations
+% 2. Backtracking algorithm
+
+After determining the set of candidate atoms $C'$, apply Newton's method to each atom to refine the off-grid position using the error surface defined in [\citenum{Mamandipoor2015}]. As derived in Section \ref{sec:omp}, the constrained objective function minimizes $\|y - Ax\|_{2}^{2}$ where S(x,p) [\citenum{Mamandipoor2015}]:
+
+\begin{equation}
+  \begin{aligned}
+    \|y - Ax\|_{2}^{2} &= y^{H}y - y^{H}Ax - (Ax)^{H}y + (Ax)^{H}(Ax) \\
+    &= \|y\|_{2}^{2} - 2\mathbb{R}\{y^{H}Ax\} + |x|\|A\|_{2}^{2}
+  \end{aligned}
+  \label{eq:yAx}
+\end{equation}
+
+Equation 
+
+To find the error surface 
+
+\begin{algorithm}[ht]
+\caption{Off-grid refinement}\label{algo:refine}
+\begin{algorithmic}[1]
+\Procedure{Refine}{$r,\, p$}
+  \Comment{residual, starting position; $R_s$ Newton steps, $B$ halvings}
+\State $a \gets a(p)$,\quad $G \gets |a^{H}r|^{2}/(a^{H}a)$,\quad $\hat{p} \gets p$
+\For{$t = 1$ \textbf{to} $R_s$}
+  \State $n \gets a^{H}a$,\quad $\alpha \gets a^{H}r/n$,\quad $e \gets r - a\alpha$
+    \Comment{least-squares amplitude and its residual, $a^{H}e = 0$}
+  %\State $F_i \gets \Re\{\bar{\alpha}\,a_i^{H}e\}$
+  %  \Comment{$a_i = \partial a/\partial p_i$, $a_{ij} = \partial^2 a/\partial p_i \partial p_j$}
+  \State $F_{i} \gets \partial G / \partial p_{i}$ \Comment{$p_1 = x, p_{2} = y$}
+  %\State $H_{ij} \gets \Re\{\bar{\alpha}\,a_{ij}^{H}e\}
+  %      - |\alpha|^{2}\Re\!\left\{a_i^{H}a_j - \tfrac{(a_i^{H}a)(a^{H}a_j)}{n}\right\}$
+  \State $H_{ij} \gets \partial^{2} G / \partial p_{i} \partial p_{j}$
+  %\State \hphantom{$H_{ij} \gets $}$+\; \tfrac{1}{n}\Re\{(a_i^{H}e)\overline{(a_j^{H}e)}\}
+  %      - \tfrac{1}{n}\Re\{\bar{\alpha}[(a_i^{H}a)(a_j^{H}e) + (a_j^{H}a)(a_i^{H}e)]\}$
+  %\State \textbf{if} $\operatorname{tr}H \geq 0$ \textbf{or} $\det H \leq 0$ \textbf{then break}
+  %  \Comment{not a local maximum of $G$}
+  \State $d \gets H^{-1}F$,\quad \textit{accepted} $\gets$ \textbf{false}
+  \For{$b = 0$ \textbf{to} $B$}
+    \State $p' \gets \hat{p} - 2^{-b}d$,\quad
+           $a' \gets a(p')$,\quad $G' \gets |a'^{H}r|^{2}/(a'^{H}a')$
+    \If{$G' > G$}
+      \State $\hat{p} \gets p'$,\; $a \gets a'$,\; $G \gets G'$,\;
+             \textit{accepted} $\gets$ \textbf{true};\; \textbf{break}
+        \Comment{backtracking line search}
+    \EndIf
+  \EndFor
+  \State \textbf{if not} \textit{accepted} \textbf{then break}
+\EndFor
+\State \textbf{return} $\hat{p}$
+\EndProcedure
+\Statex
+\Procedure{CyclicRefine}{$s,\, \hat{P},\, R_c$}
+  \Comment{re-refine every atom selected so far}
+\For{$c = 1$ \textbf{to} $R_c$}
+  \For{$j = 1$ \textbf{to} $|\hat{P}|$}
+    \State $r_j \gets s - A_{s,\backslash j}\,\hat{\alpha}_{\backslash j}$
+      \Comment{measurement minus the other atoms}
+    \State $\hat{p}_j \gets \textsc{Refine}(r_j,\, \hat{p}_j)$,\quad
+           $A_{s,j} \gets \vartheta(\hat{p}_j)$
+  \EndFor
+  \State $\hat{\alpha} \gets (A_s^{H}A_s)^{-1}A_s^{H}s$
+\EndFor
+\State \textbf{return} $\hat{P},\, A_s,\, \hat{\alpha}$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+ 
+
+
+%\subsection{Complexity}
+%\label{sec:complexity}
+
+% I actually don't know that we need to include a complexity section if I just report the dictionary building plus algorithm time.
